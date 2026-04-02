@@ -3,8 +3,8 @@
 > *"First comes smiles, then lies. Last is gunfire."* — Roland Deschain
 
 **Version:** 1.0.0
-**Date:** 2026-03-29
-**Status:** Planning
+**Date:** 2026-01-01
+**Status:** Approved
 **Source:** [design-document.md](./design-document.md)
 
 ## Specification Coverage
@@ -27,8 +27,6 @@ All Phase 1 components have full behavioral specs. Phase 2-3 components have lig
 | Positronics (API) | `positronics-api` | 6 | 10 | 3 |
 | Glass (TUI) | `glass-tui` | 5 | 9 | 2 |
 | **Total** | | **260** | **1,019** | |
-
-Specs location: `openspec/specs/<domain>/spec.md`
 
 This document details **every task** needed to implement the proposed design, organized into phases, milestones, epics, and individual tasks. Each task has a priority, dependencies, acceptance criteria, and a relative complexity estimate (1-5, where 5 is the most complex).
 
@@ -80,50 +78,50 @@ gantt
 
 #### Epic 1.1.1 — Project Infrastructure
 
-| # | Task | Complexity | Deps | Acceptance Criteria |
-|---|--------|:-----------:|------|-------------------|
-| 1 | Update `go.mod` to Go 1.26.1+, add core dependencies (cobra, zerolog, go-toml) | 1 | — | `go build ./...` compiles without errors |
-| 2 | Configure `golangci-lint` with strict rules (`.golangci.yml`) | 1 | — | `make lint` runs and passes on scaffold |
-| 3 | Update `Makefile` with targets: build, build-static, install, test, test-integration, test-e2e, lint, fmt, clean, generate, completions | 2 | #1 | All targets execute (test targets may have 0 tests) |
-| 4 | Create GitHub Actions CI workflow (`.github/workflows/ci.yml`): lint, test, build on Go 1.26.1, matrix linux/amd64+arm64 | 2 | #2, #3 | Push to main runs CI successfully |
-| 5 | Create GitHub Actions release workflow (`.github/workflows/release.yml`): goreleaser with static binaries, checksums, automatic changelog | 2 | #4 | Tag `v0.0.1-alpha` generates release with binaries |
-| 6 | Add `.goreleaser.yml` with builds for linux/amd64, linux/arm64 | 1 | #5 | goreleaser validates config |
+| # | Task | Complexity | Deps | Acceptance Criteria | Done |
+|---|--------|:-----------:|------|-------------------| :--: |
+| 1 | Update `go.mod` to Go 1.26.1+, add core dependencies (cobra, zerolog, go-toml) | 1 | — | `go build ./...` compiles without errors | ✅ |
+| 2 | Configure `golangci-lint` with strict rules (`.golangci.yml`) | 1 | — | `make lint` runs and passes on scaffold | ✅ |
+| 3 | Update `Makefile` with targets: build, build-static, install, test, test-integration, test-e2e, lint, fmt, clean, generate, completions | 2 | #1 | All targets execute (test targets may have 0 tests) | ✅ |
+| 4 | Create GitHub Actions CI workflow (`.github/workflows/ci.yml`): lint, test, build on Go 1.26.1, matrix linux/amd64+arm64 | 2 | #2, #3 | Push to main runs CI successfully | ✅ |
+| 5 | Create GitHub Actions release workflow (`.github/workflows/release.yml`): goreleaser with static binaries, checksums, automatic changelog | 2 | #4 | Tag `v0.0.1-alpha` generates release with binaries | ✅ |
+| 6 | Add `.goreleaser.yml` with builds for linux/amd64, linux/arm64 | 1 | #5 | goreleaser validates config | ✅ |
 
 #### Epic 1.1.2 — Dinh (CLI Foundation)
 
-| # | Task | Complexity | Deps | Acceptance Criteria |
-|---|--------|:-----------:|------|-------------------|
-| 7 | Create `internal/cli/root.go` — root command with cobra: global flags (`--config`, `--log-level`, `--runtime`, `--storage-driver`, `--root`, `--host`, `--format`, `--no-color`, `--quiet`) | 2 | #1 | `maestro --help` displays all flags |
-| 8 | Implement `maestro version` with ldflags (version, commit, date, Go version, OS/arch) | 1 | #7 | `maestro version` displays correct information |
-| 9 | Implement `maestro help` with styled output (lipgloss) | 1 | #7 | Help renders with colors and formatting |
-| 10 | Create stub commands for all subcommand groups: container, image, volume, network, artifact, system, service, generate, config | 2 | #7 | `maestro container --help` lists subcommands (stubs return "not implemented") |
-| 11 | Implement shortcuts on root: `run`, `exec`, `ps`, `pull`, `push`, `images`, `login`, `logout` pointing to the actual subcommands | 1 | #10 | `maestro run --help` shows the same help as `maestro container run --help` |
-| 12 | Implement output formatting system: `--format table/json/yaml`, Go templates (`--format '{{.ID}}'`), `--quiet` mode | 3 | #7 | `maestro version --format json` returns valid JSON |
+| # | Task | Complexity | Deps | Acceptance Criteria | Done |
+|---|--------|:-----------:|------|-------------------| :--: |
+| 7 | Create `internal/cli/root.go` — root command with cobra: global flags (`--config`, `--log-level`, `--runtime`, `--storage-driver`, `--root`, `--host`, `--format`, `--no-color`, `--quiet`) | 2 | #1 | `maestro --help` displays all flags | ✅ |
+| 8 | Implement `maestro version` with ldflags (version, commit, date, Go version, OS/arch) | 1 | #7 | `maestro version` displays correct information | ✅ |
+| 9 | Implement `maestro help` with styled output (lipgloss) | 1 | #7 | Help renders with colors and formatting | ✅ |
+| 10 | Create stub commands for all subcommand groups: container, image, volume, network, artifact, system, service, generate, config | 2 | #7 | `maestro container --help` lists subcommands (stubs return "not implemented") | ✅ |
+| 11 | Implement shortcuts on root: `run`, `exec`, `ps`, `pull`, `push`, `images`, `login`, `logout` pointing to the actual subcommands | 1 | #10 | `maestro run --help` shows the same help as `maestro container run --help` | ✅ |
+| 12 | Implement output formatting system: `--format table/json/yaml`, Go templates (`--format '{{.ID}}'`), `--quiet` mode | 3 | #7 | `maestro version --format json` returns valid JSON | ✅ |
 
 #### Epic 1.1.3 — Ka-tet Configuration
 
-| # | Task | Complexity | Deps | Acceptance Criteria |
-|---|--------|:-----------:|------|-------------------|
-| 13 | Create `configs/katet.toml.example` with all sections documented | 1 | — | File serves as reference |
-| 14 | Implement `internal/tower/config.go` — `katet.toml` loader with defaults, env var overrides, merge with CLI flags | 3 | #1 | Config loads from `~/.config/maestro/katet.toml` with fallback to sensible defaults |
-| 15 | Implement `maestro config show` and `maestro config edit` | 1 | #14 | `config show` displays effective config in TOML; `config edit` opens `$EDITOR` |
-| 16 | Create first-run experience: detect absence of `katet.toml`, create with defaults, display welcome message | 2 | #14 | First run creates config and shows "Welcome to Maestro" |
+| # | Task | Complexity | Deps | Acceptance Criteria | Done |
+|---|--------|:-----------:|------|-------------------| :--: |
+| 13 | Create `configs/katet.toml.example` with all sections documented | 1 | — | File serves as reference | ✅ |
+| 14 | Implement `internal/tower/config.go` — `katet.toml` loader with defaults, env var overrides, merge with CLI flags | 3 | #1 | Config loads from `~/.config/maestro/katet.toml` with fallback to sensible defaults | ✅ |
+| 15 | Implement `maestro config show` and `maestro config edit` | 1 | #14 | `config show` displays effective config in TOML; `config edit` opens `$EDITOR` | ✅ |
+| 16 | Create first-run experience: detect absence of `katet.toml`, create with defaults, display welcome message | 2 | #14 | First run creates config and shows "Welcome to Maestro" | ✅ |
 
 #### Epic 1.1.4 — Waystation (State Store)
 
-| # | Task | Complexity | Deps | Acceptance Criteria |
-|---|--------|:-----------:|------|-------------------|
-| 17 | Implement `internal/waystation/waystation.go` — file-based state store with atomic CRUD operations (write-to-temp + rename) | 3 | — | Unit tests prove write atomicity (crash safety) |
-| 18 | Implement `internal/waystation/khef.go` — flock-based locking with read/write locks, configurable timeout, dead lock detection via PID | 3 | #17 | Two concurrent processes do not corrupt state; deadlock is detected in <30s |
-| 19 | Create directory structure: `~/.local/share/maestro/{containers,maturin,dogan,beam,thinnies}` on first-run | 1 | #17 | Directories created with correct permissions (0700) |
-| 20 | Implement `internal/waystation/starkblast.go` — schema versioning in state store with automatic migration | 2 | #17 | State v1 is automatically migrated to v2 on startup |
+| # | Task | Complexity | Deps | Acceptance Criteria | Done |
+|---|--------|:-----------:|------|-------------------| :--: |
+| 17 | Implement `internal/waystation/waystation.go` — file-based state store with atomic CRUD operations (write-to-temp + rename) | 3 | — | Unit tests prove write atomicity (crash safety) | ✅ |
+| 18 | Implement `internal/waystation/khef.go` — flock-based locking with read/write locks, configurable timeout, dead lock detection via PID | 3 | #17 | Two concurrent processes do not corrupt state; deadlock is detected in <30s | ✅ |
+| 19 | Create directory structure: `~/.local/share/maestro/{containers,maturin,dogan,beam,thinnies}` on first-run | 1 | #17 | Directories created with correct permissions (0700) | ✅ |
+| 20 | Implement `internal/waystation/starkblast.go` — schema versioning in state store with automatic migration | 2 | #17 | State v1 is automatically migrated to v2 on startup | ✅ |
 
 #### Epic 1.1.5 — Logging & Observability
 
-| # | Task | Complexity | Deps | Acceptance Criteria |
-|---|--------|:-----------:|------|-------------------|
-| 21 | Implement zerolog structured logging with levels configurable via `--log-level` and `katet.toml` | 2 | #14 | `--log-level debug` shows detailed logs on stderr; default `warn` is silent |
-| 22 | Implement formatted log output: human-readable for terminal, JSON for file/pipe | 1 | #21 | TTY receives colored output; pipe receives JSON |
+| # | Task | Complexity | Deps | Acceptance Criteria | Done |
+|---|--------|:-----------:|------|-------------------| :--: |
+| 21 | Implement zerolog structured logging with levels configurable via `--log-level` and `katet.toml` | 2 | #14 | `--log-level debug` shows detailed logs on stderr; default `warn` is silent | ✅ |
+| 22 | Implement formatted log output: human-readable for terminal, JSON for file/pipe | 1 | #21 | TTY receives colored output; pipe receives JSON | ✅ |
 
 **Milestone 1.1 acceptance criteria:** `maestro version`, `maestro help`, `maestro config show` work. CI passes. State store is atomic and thread-safe.
 

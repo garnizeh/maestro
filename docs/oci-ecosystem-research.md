@@ -1,6 +1,6 @@
 # OCI Ecosystem Research for Maestro CLI Design
 
-**Date:** 2026-03-27
+**Date:** 2026-01-01
 **Purpose:** Comprehensive research document covering the OCI ecosystem, existing tools, specifications, libraries, and best practices. This serves as input for the Maestro design document.
 
 ---

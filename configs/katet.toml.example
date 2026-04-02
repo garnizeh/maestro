@@ -1,0 +1,62 @@
+# katet.toml — Maestro configuration reference
+#
+# Default location: ~/.config/maestro/katet.toml
+# Override with:    --config /path/to/katet.toml
+#                   or XDG_CONFIG_HOME/maestro/katet.toml
+
+# ── Runtime ──────────────────────────────────────────────────────────────────
+[runtime]
+# OCI runtime to use. Maestro will auto-detect from PATH when set to "auto".
+# Values: auto, runc, crun, youki, runsc, kata
+default = "auto"
+
+# ── Storage ───────────────────────────────────────────────────────────────────
+[storage]
+# Snapshot driver for container layers.
+# Values: auto, overlay, btrfs, zfs, vfs
+driver = "auto"
+
+# Maximum size of the image store. Pruning is triggered when exceeded.
+max_size = "50GB"
+
+# Root directory for the image content-addressable store (Maturin).
+# Default: ~/.local/share/maestro/maturin
+# root = "/custom/path"
+
+# ── Network ───────────────────────────────────────────────────────────────────
+[network]
+# Default subnet for bridge networks created by Maestro.
+default_subnet = "10.99.0.0/16"
+
+# Enable embedded DNS resolver for container name resolution.
+dns_enabled = true
+
+# Default network driver.
+# Values: bridge, macvlan, ipvlan, host, none
+driver = "bridge"
+
+# ── Security ──────────────────────────────────────────────────────────────────
+[security]
+# Run all containers rootless by default (recommended).
+rootless = true
+
+# Default seccomp profile to apply.
+# Values: builtin (the embedded profile), unconfined, or a path to a JSON profile
+default_seccomp = "builtin"
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+[log]
+# Log verbosity for the maestro CLI itself.
+# Values: debug, info, warn, error
+level = "warn"
+
+# Container log driver (for container stdout/stderr capture).
+# Values: json-file, journald, none
+driver = "json-file"
+
+# ── Registry Mirrors ─────────────────────────────────────────────────────────
+# Map of registry hostname → mirror URL.
+# When pulling from the key registry, the mirror is tried first.
+[registry.mirrors]
+# "docker.io" = "https://mirror.example.com"
+# "ghcr.io"   = "https://ghcr-mirror.example.com"

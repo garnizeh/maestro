@@ -4,6 +4,8 @@
 
 A modern, daemonless OCI container manager built in Go. Rootless by default, with native OCI v1.1 artifact support and a security-first architecture.
 
+Made by **garnizeH labs** - 2026.
+
 **Status:** Pre-implementation (design and specification phase complete)
 
 ---
@@ -95,7 +97,101 @@ maestro/
 - [conmon-rs](https://github.com/containers/conmon-rs) (container monitor)
 - CNI plugins: [containernetworking/plugins](https://github.com/containernetworking/plugins)
 - For rootless: `newuidmap`/`newgidmap`, entries in `/etc/subuid` and `/etc/subgid`
-- For rootless networking: [pasta](https://passt.top/builds/latest/web/passt.1.html#pasta) (recommended) or slirp4netns
+- For rootless networking: [pasta](https://passt.top/passt/) (recommended) or slirp4netns
+
+## Getting Started
+
+> Implementation has not started yet. The commands below represent the target UX.
+
+```bash
+# Build
+make build
+
+# Run a container (rootless by default)
+maestro run -d -p 8080:80 --name web nginx:latest
+
+# List containers
+maestro ps
+
+# View logs
+maestro logs -f web
+
+# Stop and remove
+maestro stop web
+maestro rm web
+
+# Pull an image
+maestro pull alpine:latest
+
+# TUI dashboard
+maestro dashboard
+
+# System diagnostics
+maestro system check
+```
+
+## Configuration
+
+Maestro uses TOML configuration at `~/.config/maestro/katet.toml`:
+
+```toml
+[runtime]
+default = "crun"
+
+[storage]
+driver = "overlay"
+max_size = "50GB"
+
+[network]
+default_subnet = "10.99.0.0/16"
+dns_enabled = true
+
+[security]
+rootless = true
+default_seccomp = "builtin"
+```
+
+See [configs/katet.toml.example](configs/katet.toml.example) for the full reference.
+
+## Development
+
+```bash
+make build              # Compile binary
+make test               # Unit tests (with -race)
+make test-integration   # Integration tests
+make test-e2e           # End-to-end tests
+make lint               # golangci-lint
+make fmt                # gofumpt
+make clean              # Remove build artifacts
+```
+
+### Development Protocol
+
+This project follows a strict development protocol. The four laws:
+
+1. **Tests Passing** — writing tests is sine qua non; 70% coverage minimum
+2. **Documentation Updated** — specs, help text, README
+3. **Commit on Task Branch** — conventional commits, never commit to main
+4. **Roadmap is Source of Truth** — [docs/roadmap.md](docs/roadmap.md) reflects reality at all times
+
+### Branch Naming
+
+```
+p<phase>/<milestone>-<description>
+```
+
+Examples: `p1/1.2-drawing-image-pull`, `p1/3.1-dinh-root-command`
+
+### Commit Format
+
+```
+<type>(<component>): <description>
+
+Roadmap #N, <change-name>
+```
+
+Types: `feat`, `fix`, `test`, `refactor`, `docs`, `chore`, `perf`
+Components: `tower`, `maturin`, `gan`, `eld`, `beam`, `prim`, `shardik`, `white`, `rose`, `waystation`, `positronics`, `glass`, `dinh`
 
 ## Roadmap
 
@@ -140,6 +236,7 @@ Full details: [docs/roadmap.md](docs/roadmap.md)
 | Document | Description |
 |----------|-------------|
 | [Design Document](docs/design-document.md) | Full architecture with component design, data models, and API |
+| [Roadmap](docs/roadmap.md) | 209 tasks with dependencies, complexity, and acceptance criteria |
 | [OCI Research](docs/oci-ecosystem-research.md) | Comprehensive OCI ecosystem research |
 | [Dark Tower Naming](docs/dark-tower-naming-map.md) | Component-to-mythology mapping with justifications |
 

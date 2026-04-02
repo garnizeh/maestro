@@ -1,0 +1,57 @@
+version: 2
+
+project_name: maestro
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: maestro
+    main: ./cmd/maestro
+    binary: maestro
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -w -s
+      - -X github.com/rodrigo-baliza/maestro/internal/cli.Version={{.Version}}
+      - -X github.com/rodrigo-baliza/maestro/internal/cli.Commit={{.Commit}}
+      - -X github.com/rodrigo-baliza/maestro/internal/cli.BuildDate={{.Date}}
+
+archives:
+  - id: maestro
+    formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - configs/katet.toml.example
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+
+release:
+  github:
+    owner: rodrigo-baliza
+    name: maestro
+  draft: false
+  prerelease: auto
+  name_template: "{{.ProjectName}} {{.Tag}}"
