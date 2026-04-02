@@ -4,8 +4,8 @@
 > -- Stephen King, The Gunslinger
 
 **Version:** 1.0.0
-**Date:** 2026-03-29
-**Status:** RFC (Request for Comments)
+**Date:** 2026-01-01
+**Status:** Approved
 
 All internal components of Maestro are named after the mythology of Stephen King's *The Dark Tower* series. See the [naming map](./dark-tower-naming-map.md) for detailed justifications. A quick-reference glossary is included in Appendix B.
 
@@ -166,7 +166,6 @@ The daemonless architecture is the correct choice for Maestro. The analysis:
 **Positronics — Optional socket mode for advanced use cases:**
 
 Some operations benefit from a persistent process:
-
 - **Ka-shume (event streaming)** — `maestro events --follow`
 - **Breaker (background GC)** — periodic cleanup without user intervention
 - **Container monitoring** — health checks, restart policies
@@ -186,7 +185,6 @@ systemctl --user enable --now maestro
 ```
 
 The Positronics process:
-
 - Runs as the invoking user (never root)
 - Stores state in `$XDG_RUNTIME_DIR/maestro/`
 - Uses Khef (flock-based locking) to coordinate with concurrent CLI invocations
@@ -216,7 +214,6 @@ sequenceDiagram
 ```
 
 **Cort** (conmon-rs — the weapons master who watches over his charges):
-
 - Lightweight (~2MB RSS per container)
 - Handles stdio forwarding, logging, and exit code collection
 - Independent of the CLI process lifecycle
@@ -253,7 +250,6 @@ graph LR
 ```
 
 **Khef — Locking strategy:**
-
 - Per-resource `flock()` locks (container, image, volume, network)
 - Lock files in `thinnies/<resource-type>/<id>.lock`
 - Read locks for inspection, write locks for mutations
@@ -340,7 +336,6 @@ sequenceDiagram
 **Deduplication:** Layers are stored by content digest. Identical content produces identical digests — if `nginx:latest` and `nginx:1.25` share 3 of 4 layers, those 3 are stored once.
 
 **Reap — Cache eviction (Charyou tree, "come reap"):**
-
 1. **LRU by last-access time** — track `atime` or custom metadata
 2. **Reference counting** — each manifest references layers; unreferenced blobs eligible for reaping
 3. **Max storage limit** — configurable via `katet.toml` (`storage.max_size = "50GB"`)
@@ -363,7 +358,6 @@ graph TD
 ```
 
 Keystone selection algorithm:
-
 1. Exact match: `os` + `architecture` + `variant`
 2. Fallback: `os` + `architecture` (ignore variant)
 3. Error: no compatible Keystone found
@@ -391,9 +385,9 @@ stateDiagram-v2
     Stopped --> Running: roland start (restart)
     Deleted --> [*]
 
-    note right of Created: Bundle prepared<br>Todash (namespaces) allocated<br>Beam (network) configured
-    note right of Running: Process executing<br>Cort supervising
-    note right of Stopped: Exit code in Waystation<br>Glass (logs) preserved<br>Filesystem intact
+    note right of Created: Bundle prepared\nTodash (namespaces) allocated\nBeam (network) configured
+    note right of Running: Process executing\nCort supervising
+    note right of Stopped: Exit code in Waystation\nGlass (logs) preserved\nFilesystem intact
 ```
 
 States are persisted in `containers/<id>/state.json` within the Waystation and updated atomically via write-to-temp + rename.
@@ -463,13 +457,11 @@ type Eld interface {
 ```
 
 **Pathfinder — Runtime discovery:**
-
 1. Explicit config: `runtime.path = "/usr/bin/crun"` in `katet.toml`
 2. `$PATH` lookup: `crun` -> `runc` -> `youki` (preference order)
 3. Error if no gunslinger found
 
 **Runtime selection per-container:**
-
 ```bash
 maestro run --runtime crun nginx         # Fast startup (crun's speed)
 maestro run --runtime runsc nginx        # gVisor sandbox (Todash isolation)
@@ -619,7 +611,6 @@ Maestro creates a default bridge network called **beam0** on first use:
 > *"Pere Callahan knows everyone in the Calla by name."*
 
 Callahan is a lightweight embedded DNS resolver (inspired by Aardvark-dns) per network:
-
 - Resolves container names and aliases within the same Beam (network)
 - Forwards external queries to host DNS servers
 - Listens on `127.0.0.53` inside each container's Todash (netns)
@@ -721,7 +712,6 @@ Two-phase garbage collection:
 2. **Sweep (Reap):** Remove blobs not referenced by any manifest; remove snapshots not referenced by any container; optionally reap Dogans not mounted by any container
 
 Reap is triggered:
-
 - Manually: `maestro system prune`
 - On threshold: when storage exceeds `storage.gc_threshold` (default: 80% of `storage.max_size`)
 - By Breaker: if Positronics is active, every `storage.gc_interval` (default: 24h)
@@ -772,7 +762,6 @@ sequenceDiagram
 ```
 
 **Sigul resolution order:**
-
 1. `--username`/`--password` CLI flags
 2. `$MAESTRO_REGISTRY_TOKEN` environment variable
 3. `~/.config/maestro/auth.json` (maestro-native)
@@ -1056,7 +1045,7 @@ endpoints = ["https://registry-1.docker.io"]
   "ka": {
     "status": "running",
     "pid": 12345,
-    "started_at": "2026-03-28T10:00:00Z",
+    "started_at": "2026-03-27T10:00:00Z",
     "finished_at": null,
     "exit_code": null,
     "oom_killed": false
@@ -1116,7 +1105,7 @@ endpoints = ["https://registry-1.docker.io"]
   },
   "cort_pid": 12340,
   "glass_path": "/home/user/.local/share/maestro/containers/abc123.../container.log",
-  "created_at": "2026-03-28T09:59:55Z"
+  "created_at": "2026-03-27T09:59:55Z"
 }
 ```
 
@@ -1146,8 +1135,8 @@ endpoints = ["https://registry-1.docker.io"]
   ],
   "total_size": 67890123,
   "created_at": "2026-03-15T12:00:00Z",
-  "drawn_at": "2026-03-28T10:00:00Z",
-  "last_used_at": "2026-03-28T10:00:00Z"
+  "drawn_at": "2026-03-27T10:00:00Z",
+  "last_used_at": "2026-03-27T10:00:00Z"
 }
 ```
 
@@ -1180,7 +1169,7 @@ endpoints = ["https://registry-1.docker.io"]
   "internal": false,
   "callahan_enabled": true,
   "labels": {},
-  "created_at": "2026-03-28T09:00:00Z",
+  "created_at": "2026-03-27T09:00:00Z",
   "connected_containers": ["abc123...", "def456..."]
 }
 ```
@@ -1195,8 +1184,8 @@ endpoints = ["https://registry-1.docker.io"]
   "mountpoint": "/home/user/.local/share/maestro/dogan/my-dogan/data",
   "labels": {"app": "web"},
   "options": {},
-  "created_at": "2026-03-28T08:00:00Z",
-  "last_used_at": "2026-03-28T10:00:00Z",
+  "created_at": "2026-03-27T08:00:00Z",
+  "last_used_at": "2026-03-27T10:00:00Z",
   "used_by": ["abc123..."]
 }
 ```
@@ -1389,31 +1378,31 @@ BUILD_DATE := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS    := -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(BUILD_DATE)
 
 build:                    ## Build maestro binary
- go build -ldflags "$(LDFLAGS)" -o bin/maestro ./cmd/maestro
+	go build -ldflags "$(LDFLAGS)" -o bin/maestro ./cmd/maestro
 
 build-static:             ## Build static binary (for containers)
- CGO_ENABLED=0 go build -ldflags "$(LDFLAGS) -s -w" -o bin/maestro ./cmd/maestro
+	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS) -s -w" -o bin/maestro ./cmd/maestro
 
 install:                  ## Install to $GOPATH/bin
- go install -ldflags "$(LDFLAGS)" ./cmd/maestro
+	go install -ldflags "$(LDFLAGS)" ./cmd/maestro
 
 test:                     ## Run unit tests
- go test -race -count=1 ./internal/... ./pkg/...
+	go test -race -count=1 ./internal/... ./pkg/...
 
 test-integration:         ## Run integration tests (requires Eld runtime)
- go test -race -count=1 -tags=integration ./test/integration/...
+	go test -race -count=1 -tags=integration ./test/integration/...
 
 test-e2e:                 ## Run end-to-end tests
- go test -race -count=1 -tags=e2e ./test/e2e/...
+	go test -race -count=1 -tags=e2e ./test/e2e/...
 
 lint:                     ## Run linters
- golangci-lint run ./...
+	golangci-lint run ./...
 
 fmt:                      ## Format code
- gofumpt -w .
+	gofumpt -w .
 
 clean:                    ## Reap build artifacts
- rm -rf bin/
+	rm -rf bin/
 ```
 
 ### 6.4 Testing Strategy
@@ -1452,7 +1441,6 @@ graph TD
 ```
 
 **First-run diagnostics:** `maestro system check` validates:
-
 - subuid/subgid allocation
 - Kernel version and features
 - Available Eld runtimes (Pathfinder scan)
@@ -1657,14 +1645,12 @@ service TowerService {  // System
 ## Appendix A: References
 
 ### Specifications
-
 - [OCI Image Spec v1.1.1](https://github.com/opencontainers/image-spec)
 - [OCI Distribution Spec v1.1.0](https://github.com/opencontainers/distribution-spec)
 - [OCI Runtime Spec v1.3.0](https://github.com/opencontainers/runtime-spec)
 - [CNI Spec v1.1.0](https://www.cni.dev/docs/spec/)
 
 ### Key Projects
-
 - [containerd](https://github.com/containerd/containerd) — Container runtime daemon
 - [Podman](https://github.com/containers/podman) — Daemonless container engine
 - [runc](https://github.com/opencontainers/runc) — OCI reference runtime
@@ -1674,14 +1660,12 @@ service TowerService {  // System
 - [Sigstore/cosign](https://github.com/sigstore/cosign) — Container signing
 
 ### Go Libraries
-
 - [go-containerregistry](https://github.com/google/go-containerregistry) — Shardik's foundation
 - [cobra](https://github.com/spf13/cobra) — Dinh's framework
 - [bubbletea](https://github.com/charmbracelet/bubbletea) — Glass engine
 - [lipgloss](https://github.com/charmbracelet/lipgloss) — Glass styling
 
 ### Research
-
 - See [oci-ecosystem-research.md](./oci-ecosystem-research.md) for full research document
 - See [dark-tower-naming-map.md](./dark-tower-naming-map.md) for complete naming reference with justifications
 
@@ -1750,4 +1734,4 @@ Quick reference for navigating the codebase:
 
 > *"Go then, there are other worlds than these."* — Jake Chambers
 
-*Document generated as part of the Maestro project. Last updated: 2026-03-28.*
+*Document generated as part of the Maestro project. Last updated: 2026-03-27.*

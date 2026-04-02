@@ -1,7 +1,7 @@
 # Maestro: The Dark Tower Naming Map
 
 **Version:** 1.0.0
-**Date:** 2026-03-29
+**Date:** 2026-01-01
 
 > *"The man in black fled across the desert, and the gunslinger followed."*
 > -- Stephen King, The Gunslinger
