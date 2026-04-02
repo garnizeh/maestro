@@ -22,7 +22,8 @@ type BuildInfo struct {
 	Arch      string `json:"arch"      yaml:"arch"`
 }
 
-// GetBuildInfo returns the current build metadata.
+// GetBuildInfo returns the current build metadata populated from link-time variables and the runtime environment.
+// The returned BuildInfo contains Version, Commit, BuildDate, GoVersion, OS, and Arch.
 func GetBuildInfo() BuildInfo {
 	return BuildInfo{
 		Version:   Version,

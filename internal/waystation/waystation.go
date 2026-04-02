@@ -21,7 +21,7 @@ type Store struct {
 	root string
 }
 
-// New returns a Store rooted at dir. Call Init to create the directory tree.
+// New creates a Store rooted at root. It does not create any directories; call Init to create the required directory tree.
 func New(root string) *Store {
 	return &Store{root: root}
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/rodrigo-baliza/maestro/internal/tower"
 )
 
+// It registers the "show" and "edit" subcommands.
 func newConfigCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
@@ -23,6 +24,8 @@ func newConfigCmd() *cobra.Command {
 	return cmd
 }
 
+// newConfigShowCmd creates the "show" subcommand that displays the effective configuration in TOML by default or in JSON when the global format is set to JSON.
+// The command loads the configuration and writes it to the command's output writer, returning any error encountered while loading or formatting the configuration.
 func newConfigShowCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "show",
@@ -50,6 +53,11 @@ func newConfigShowCmd() *cobra.Command {
 	}
 }
 
+// newConfigEditCmd creates a Cobra command that opens katet.toml in the user's configured editor.
+// 
+// The command selects the editor from the EDITOR environment variable, falling back to VISUAL,
+// and returns an error if neither is set. It resolves the configuration file path and launches
+// the editor as a subprocess with standard input, output, and error connected to the current process.
 func newConfigEditCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "edit",

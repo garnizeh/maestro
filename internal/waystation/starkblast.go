@@ -82,7 +82,9 @@ func (s *Store) SchemaVersion() (int, error) {
 }
 
 // migrate runs the migration from schema version `from` to `to`.
-// Add cases here as the schema evolves.
+// migrate applies a schema migration to move stored data from version `from` to version `to` using the provided Store.
+// It returns nil on success and an error if no migration is defined for the specified version pair.
+// Currently only the v0→v1 transition is defined (no-op); other transitions are unsupported.
 func migrate(_ *Store, from, to int) error {
 	switch {
 	case from == 0 && to == 1:

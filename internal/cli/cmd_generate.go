@@ -4,6 +4,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// newGenerateCmd creates a Cobra "generate" command for producing auxiliary files
+// such as shell completions and man pages. The command registers a "completions"
+// subcommand.
 func newGenerateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "generate",
@@ -13,6 +16,10 @@ func newGenerateCmd() *cobra.Command {
 	return cmd
 }
 
+// newGenerateCompletionsCmd creates a Cobra command that generates shell completion
+// scripts for bash, zsh, fish, and PowerShell.
+// The command requires exactly one argument specifying the shell and writes the
+// generated completion script to the command's output writer.
 func newGenerateCompletionsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:       "completions [bash|zsh|fish|powershell]",

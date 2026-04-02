@@ -26,7 +26,8 @@ type Formatter struct {
 	quietFn func(v any) string
 }
 
-// NewFormatter creates a Formatter for the given --format value.
+// NewFormatter creates a Formatter configured with the provided format string and quiet flag.
+// The returned Formatter has its quietFn unset; the format value is interpreted case-insensitively when used during formatting.
 func NewFormatter(format string, quiet bool) *Formatter {
 	return &Formatter{format: format, quiet: quiet}
 }

@@ -8,6 +8,8 @@ import (
 
 var errNotImplemented = errors.New("not yet implemented")
 
+// stubCmd creates a Cobra command that always fails with errNotImplemented when run.
+// The command's Use, Short, and Aliases fields are populated from the provided parameters.
 func stubCmd(use, short string, aliases ...string) *cobra.Command {
 	return &cobra.Command{
 		Use:     use,
@@ -17,7 +19,10 @@ func stubCmd(use, short string, aliases ...string) *cobra.Command {
 	}
 }
 
-// ── Container ────────────────────────────────────────────────────────────────
+// newContainerCmd creates the top-level "container" command for managing containers.
+// It sets usage, short description, and aliases, and registers stub subcommands for
+// common container operations: create, start, stop, kill, rm, run, exec, ls (ps, list),
+// inspect, logs, stats, pause, unpause, cp, rename, wait, and top.
 
 func newContainerCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -47,7 +52,8 @@ func newContainerCmd() *cobra.Command {
 	return cmd
 }
 
-// ── Image ────────────────────────────────────────────────────────────────────
+// newImageCmd creates the top-level "image" command for managing container images.
+// The command uses "image", has the short description "Manage images", includes the alias "i", and registers subcommands: pull, push, ls (list), rm, inspect, tag, save, load, build, prune, and history.
 
 func newImageCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -71,7 +77,9 @@ func newImageCmd() *cobra.Command {
 	return cmd
 }
 
-// ── Volume ───────────────────────────────────────────────────────────────────
+// newVolumeCmd creates the top-level "volume" Cobra command for managing volumes.
+// It registers the subcommands: create, ls (alias "list"), rm, inspect, and prune.
+// The returned *cobra.Command has Use "volume" and Short "Manage volumes".
 
 func newVolumeCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -88,7 +96,8 @@ func newVolumeCmd() *cobra.Command {
 	return cmd
 }
 
-// ── Network ──────────────────────────────────────────────────────────────────
+// newNetworkCmd creates a top-level "network" command for managing networks.
+// The command includes subcommands: create, ls (alias: list), rm, inspect, connect, disconnect, and prune.
 
 func newNetworkCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -108,7 +117,8 @@ func newNetworkCmd() *cobra.Command {
 	return cmd
 }
 
-// ── Artifact ─────────────────────────────────────────────────────────────────
+// newArtifactCmd creates the "artifact" command for managing OCI artifacts (ORAS)
+// and registers stub subcommands: push, pull, ls (alias "list"), attach, and discover.
 
 func newArtifactCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -125,7 +135,10 @@ func newArtifactCmd() *cobra.Command {
 	return cmd
 }
 
-// ── System ───────────────────────────────────────────────────────────────────
+// newSystemCmd creates and returns a *cobra.Command named "system" for system-level
+// operations and diagnostics. The command registers the stub subcommands
+// check, info, events, df, and prune; each subcommand is a placeholder that
+// returns the package error errNotImplemented.
 
 func newSystemCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -142,7 +155,7 @@ func newSystemCmd() *cobra.Command {
 	return cmd
 }
 
-// ── Service ──────────────────────────────────────────────────────────────────
+// newServiceCmd constructs the `service` command for managing systemd unit files for containers and registers the `generate`, `install`, and `uninstall` subcommands.
 
 func newServiceCmd() *cobra.Command {
 	cmd := &cobra.Command{

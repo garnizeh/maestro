@@ -17,14 +17,21 @@ import (
 //nolint:gochecknoglobals // dependency injection point: overridden in tests to avoid real TTY checks
 var IsTerminalFn func(fd uintptr) bool = isatty.IsTerminal
 
-// InitLogger configures zerolog for [os.Stderr].
+// InitLogger initializes the package logger to write to standard error using the
+// specified log level and color preference. If the provided level is invalid it
+// defaults to warning; when stderr is a TTY and color is enabled the output uses
+// a timestamped console format, otherwise JSON-style logging is used.
 func InitLogger(level string, noColor bool) error {
 	return InitLoggerTo(os.Stderr, level, noColor)
 }
 
 // InitLoggerTo configures zerolog for dest. It is exported so tests can inject
 // arbitrary writers and exercise both the TTY (ConsoleWriter) and non-TTY
-// (JSON) output paths without requiring a real terminal.
+// InitLoggerTo initializes the package-level zerolog logger to write to dest and sets the global log level.
+// It parses level case-insensitively and falls back to zerolog.WarnLevel if parsing fails.
+// If dest is an *os.File that is a terminal (as determined by IsTerminalFn) and noColor is false,
+// the logger uses a console writer with RFC3339 timestamps and color support; otherwise it writes the raw
+// (JSON-style) output directly to dest.
 func InitLoggerTo(dest io.Writer, level string, noColor bool) error {
 	lvl, err := zerolog.ParseLevel(strings.ToLower(level))
 	if err != nil {

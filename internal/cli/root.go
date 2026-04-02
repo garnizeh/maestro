@@ -24,7 +24,10 @@ type GlobalFlags struct {
 //nolint:gochecknoglobals // shared flag state bound to cobra persistent flags
 var globalFlags GlobalFlags
 
-// NewRootCommand builds the cobra root command with all subcommands attached.
+// NewRootCommand creates the Cobra root command for the maestro CLI, configures
+// persistent global flags, registers a logging initializer, and attaches all
+// subcommands and top-level shortcut commands.
+// It returns the fully constructed *cobra.Command ready for execution.
 func NewRootCommand() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "maestro",
@@ -84,7 +87,10 @@ Rootless by default. OCI v1.1 native. No daemon required.
 	return root
 }
 
-// Execute is the main entry point called by main.go.
+// Execute builds the root CLI command and runs it.
+//
+// If command execution returns an error, the error is written to standard
+// error prefixed with "Error:" and the process exits with status code 1.
 func Execute() {
 	root := NewRootCommand()
 	if err := root.Execute(); err != nil {

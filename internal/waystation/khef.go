@@ -88,7 +88,12 @@ func (l *Lock) Release() error {
 }
 
 // acquireFlockWithContext attempts to acquire a flock, respecting ctx
-// cancellation. It polls with LOCK_NB so that cancellation is responsive.
+// acquireFlockWithContext attempts to acquire a POSIX flock (shared or exclusive) on f,
+// polling with non-blocking attempts until the lock is obtained, the context is cancelled,
+// or a deadline is reached.
+// If ctx carries a deadline it is honored; otherwise a default timeout is applied.
+// Returns nil on success, ctx.Err() if the context is canceled, or an error if the syscall fails
+// or the timeout elapses.
 func acquireFlockWithContext(ctx context.Context, f *os.File, how int) error {
 	deadline, hasDeadline := ctx.Deadline()
 	if !hasDeadline {

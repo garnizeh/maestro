@@ -11,6 +11,12 @@ import (
 
 const tabwriterPadding = 2
 
+// newVersionCmd creates a Cobra `version` command that writes build and runtime
+// information to the command's output (stdout by default).
+//
+// The command respects the global format flag: "json" outputs indented JSON,
+// "table" or empty outputs a tab-aligned table of fields, and any other value
+// is rendered via the configured custom formatter.
 func newVersionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",

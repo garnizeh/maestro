@@ -57,6 +57,9 @@ type StateConfig struct {
 }
 
 // defaults returns a Config populated with sensible built-in values.
+// It uses the current user's home directory to derive Storage.Root and State.Root
+// (e.g., $HOME/.local/share/maestro[/maturin]) and sets reasonable defaults for
+// runtime, storage driver/size, network, security, logging, and registry.
 func defaults() *Config {
 	home, _ := os.UserHomeDir()
 	return &Config{
@@ -90,7 +93,11 @@ func defaults() *Config {
 
 // ConfigPath resolves the effective path to katet.toml.
 // If override is non-empty it is returned as-is. Otherwise the XDG or HOME
-// default is used.
+// ConfigPath returns the path to the effective Maestro config file.
+// If the provided override is non-empty, it is returned unchanged.
+// Otherwise the function uses XDG_CONFIG_HOME if set, falling back to $HOME/.config,
+// and returns $base/maestro/katet.toml.
+// An error is returned only if the user's home directory cannot be determined.
 func ConfigPath(override string) (string, error) {
 	if override != "" {
 		return override, nil
@@ -110,7 +117,14 @@ func ConfigPath(override string) (string, error) {
 }
 
 // LoadConfig loads configuration from the given path (or default path when
-// empty), merges environment variable overrides, and returns the result.
+// LoadConfig loads the effective Maestro configuration by combining built-in defaults,
+// an optional on-disk TOML file, and environment variable overrides.
+// 
+// If pathOverride is non-empty it is used as the config file path; otherwise the path
+// is resolved via ConfigPath. If the file does not exist, defaults are returned with
+// environment overrides applied. An error is returned if path resolution fails,
+// if reading the file fails for reasons other than "not exist", or if parsing the
+// TOML file fails.
 func LoadConfig(pathOverride string) (*Config, error) {
 	path, err := ConfigPath(pathOverride)
 	if err != nil {
@@ -134,7 +148,13 @@ func LoadConfig(pathOverride string) (*Config, error) {
 	return cfg, nil
 }
 
-// applyEnvOverrides overwrites fields when corresponding env vars are set.
+// applyEnvOverrides sets specific fields in cfg from environment variables when those
+// variables are non-empty. It maps:
+// - MAESTRO_RUNTIME -> cfg.Runtime.Default
+// - MAESTRO_STORAGE_DRIVER -> cfg.Storage.Driver
+// - MAESTRO_LOG_LEVEL -> cfg.Log.Level
+// - MAESTRO_ROOT -> cfg.State.Root
+// - MAESTRO_ROOTLESS -> cfg.Security.Rootless (treated as false for "false" or "0", true otherwise)
 func applyEnvOverrides(cfg *Config) {
 	if v := os.Getenv("MAESTRO_RUNTIME"); v != "" {
 		cfg.Runtime.Default = v
@@ -154,7 +174,12 @@ func applyEnvOverrides(cfg *Config) {
 }
 
 // EnsureDefault creates the config file with defaults if it does not exist.
-// Returns true when the file was newly created (first-run scenario).
+// EnsureDefault ensures the default configuration file exists at the resolved path.
+// If the file does not exist it creates the parent directory (permission 0700) and writes
+// the built-in defaults to the file (permission 0600).
+// It returns true and the resolved path when the file was newly created, or false and the
+// resolved path when the file already existed. A non-nil error is returned if resolving the
+// path, creating the directory, marshaling defaults, or writing the file fails.
 func EnsureDefault(pathOverride string) (bool, string, error) {
 	path, err := ConfigPath(pathOverride)
 	if err != nil {
