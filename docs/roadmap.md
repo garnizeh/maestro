@@ -3,7 +3,7 @@
 > *"First comes smiles, then lies. Last is gunfire."* — Roland Deschain
 
 **Version:** 1.0.0
-**Date:** 2026-01-01
+**Date:** 2026-02-01
 **Status:** Approved
 **Source:** [design-document.md](./design-document.md)
 
@@ -133,43 +133,43 @@ gantt
 
 #### Epic 1.2.1 — Shardik (Registry Client)
 
-| # | Task | Complexity | Deps | Acceptance Criteria |
-|---|--------|:-----------:|------|-------------------|
-| 23 | Implement `internal/shardik/shardik.go` — wrapper over go-containerregistry for OCI Distribution Spec v1.1.0 registry operations | 3 | #1 | Client resolves tags and performs GET on manifests and blobs |
-| 24 | Implement `internal/shardik/sigul.go` — credential resolution chain: CLI flags → env var → `auth.json` → `~/.docker/config.json` → credential helpers → anonymous | 3 | #23 | Login to Docker Hub, GCR, GHCR, and ECR works |
-| 25 | Implement `maestro login` / `maestro logout` — interactive authentication with secure password prompt | 2 | #24 | `maestro login docker.io` saves credentials in `auth.json` with 0600 permissions |
-| 26 | Implement `internal/shardik/horn.go` — retry with exponential backoff + circuit breaker (3 failures → open, 60s → half-open) | 2 | #23 | Retry works for network errors; circuit breaker opens after 3 consecutive failures |
-| 27 | Implement `internal/shardik/thinny.go` — mirror/proxy resolution from `katet.toml` | 2 | #23, #14 | Pull from `docker.io` tries mirror first; fallback to primary |
-| 28 | Implement content negotiation — Accept headers for OCI manifest + Docker manifest v2 + fat manifest | 1 | #23 | Pull accepts OCI and Docker format images |
+| # | Task | Complexity | Deps | Acceptance Criteria | Done |
+|---|--------|:-----------:|------|-------------------| :--: |
+| 23 | Implement `internal/shardik/shardik.go` — wrapper over go-containerregistry for OCI Distribution Spec v1.1.0 registry operations | 3 | #1 | Client resolves tags and performs GET on manifests and blobs | ✅ |
+| 24 | Implement `internal/shardik/sigul.go` — credential resolution chain: CLI flags → env var → `auth.json` → `~/.docker/config.json` → credential helpers → anonymous | 3 | #23 | Login to Docker Hub, GCR, GHCR, and ECR works | ✅ |
+| 25 | Implement `maestro login` / `maestro logout` — interactive authentication with secure password prompt | 2 | #24 | `maestro login docker.io` saves credentials in `auth.json` with 0600 permissions | ✅ |
+| 26 | Implement `internal/shardik/horn.go` — retry with exponential backoff + circuit breaker (3 failures → open, 60s → half-open) | 2 | #23 | Retry works for network errors; circuit breaker opens after 3 consecutive failures | ✅ |
+| 27 | Implement `internal/shardik/thinny.go` — mirror/proxy resolution from `katet.toml` | 2 | #23, #14 | Pull from `docker.io` tries mirror first; fallback to primary | ✅ |
+| 28 | Implement content negotiation — Accept headers for OCI manifest + Docker manifest v2 + fat manifest | 1 | #23 | Pull accepts OCI and Docker format images | ✅ |
 
 #### Epic 1.2.2 — Maturin (Content-Addressable Store)
 
-| # | Task | Complexity | Deps | Acceptance Criteria |
-|---|--------|:-----------:|------|-------------------|
-| 29 | Implement `internal/maturin/store.go` — CAS in `~/.local/share/maestro/maturin/blobs/sha256/` with operations: Put(digest, reader), Get(digest), Exists(digest), Delete(digest) | 3 | #17 | Blob stored and retrieved by digest; digest verified on read |
-| 30 | Implement manifest store with symlinks for tags: `maturin/manifests/<registry>/<repo>/<tag> → sha256:<digest>` | 2 | #29 | Tag resolves to correct digest; multiple tags can point to the same manifest |
-| 31 | Implement local `index.json` — OCI image index tracking all local images | 2 | #29 | Index is atomically updated on each pull/rm |
-| 32 | Implement integrity verification — SHA256 of each blob is verified on write and read | 1 | #29 | Corrupted blob is detected and reported |
+| # | Task | Complexity | Deps | Acceptance Criteria | Done |
+|---|--------|:-----------:|------|-------------------| :--: |
+| 29 | Implement `internal/maturin/store.go` — CAS in `~/.local/share/maestro/maturin/blobs/sha256/` with operations: Put(digest, reader), Get(digest), Exists(digest), Delete(digest) | 3 | #17 | Blob stored and retrieved by digest; digest verified on read | ✅ |
+| 30 | Implement manifest store with symlinks for tags: `maturin/manifests/<registry>/<repo>/<tag> → sha256:<digest>` | 2 | #29 | Tag resolves to correct digest; multiple tags can point to the same manifest | ✅ |
+| 31 | Implement local `index.json` — OCI image index tracking all local images | 2 | #29 | Index is atomically updated on each pull/rm | ✅ |
+| 32 | Implement integrity verification — SHA256 of each blob is verified on write and read | 1 | #29 | Corrupted blob is detected and reported | ✅ |
 
 #### Epic 1.2.3 — Drawing (Pull Logic)
 
-| # | Task | Complexity | Deps | Acceptance Criteria |
-|---|--------|:-----------:|------|-------------------|
-| 33 | Implement `internal/maturin/drawing.go` — full pull flow: resolve tag → get manifest → download layers (parallel, up to 4) → store in Maturin | 4 | #23, #29 | `maestro pull nginx:latest` downloads complete image |
-| 34 | Implement Keystone selection (`internal/maturin/keystone.go`) — detect host OS/arch, select correct manifest from Image Index | 2 | #33 | On arm64, pull of multi-platform image selects arm64 manifest |
-| 35 | Implement `--platform` flag for Keystone selection override | 1 | #34 | `maestro pull --platform linux/arm64 nginx` downloads arm64 variant even on amd64 |
-| 36 | Implement progress bar for layer download — styled output with lipgloss showing per-layer + total progress | 2 | #33 | Pull displays real-time progress with speed and ETA |
-| 37 | Implement layer deduplication — skip download if blob already exists in local CAS | 1 | #33 | Pull of image sharing layers with another already present downloads only new layers |
-| 38 | Implement Docker manifest v2 compatibility — convert Docker manifest to OCI manifest on ingestion | 2 | #33 | Pull of Docker-format image works transparently |
+| # | Task | Complexity | Deps | Acceptance Criteria | Done |
+|---|--------|:-----------:|------|-------------------| :--: |
+| 33 | Implement `internal/maturin/drawing.go` — full pull flow: resolve tag → get manifest → download layers (parallel, up to 4) → store in Maturin | 4 | #23, #29 | `maestro pull nginx:latest` downloads complete image | ✅ |
+| 34 | Implement Keystone selection (`internal/maturin/keystone.go`) — detect host OS/arch, select correct manifest from Image Index | 2 | #33 | On arm64, pull of multi-platform image selects arm64 manifest | ✅ |
+| 35 | Implement `--platform` flag for Keystone selection override | 1 | #34 | `maestro pull --platform linux/arm64 nginx` downloads arm64 variant even on amd64 | ✅ |
+| 36 | Implement progress bar for layer download — styled output with lipgloss showing per-layer + total progress | 2 | #33 | Pull displays real-time progress with speed and ETA | ✅ |
+| 37 | Implement layer deduplication — skip download if blob already exists in local CAS | 1 | #33 | Pull of image sharing layers with another already present downloads only new layers | ✅ |
+| 38 | Implement Docker manifest v2 compatibility — convert Docker manifest to OCI manifest on ingestion | 2 | #33 | Pull of Docker-format image works transparently | ✅ |
 
 #### Epic 1.2.4 — Image CLI Commands (Read Operations)
 
-| # | Task | Complexity | Deps | Acceptance Criteria |
-|---|--------|:-----------:|------|-------------------|
-| 39 | Implement `maestro image ls` — list local images with REPOSITORY, TAG, IMAGE ID, CREATED, SIZE | 2 | #31, #12 | Formatted table output; `--format json` works; `--quiet` shows only IDs |
-| 40 | Implement `maestro image inspect <image>` — display complete image metadata (config, layers, platform, labels) | 2 | #29 | Detailed JSON output with all OCI manifest + config information |
-| 41 | Implement `maestro image history <image>` — display layer history with size and command that created each one | 2 | #29 | Shows each layer with CREATED BY, SIZE, and whether it is an empty layer |
-| 42 | Implement `maestro image rm <image>` — remove local image (with dependent container check) | 2 | #29, #17 | Image removed; error if active container depends on it; `--force` removes anyway |
+| # | Task | Complexity | Deps | Acceptance Criteria | Done |
+|---|--------|:-----------:|------|-------------------| :--: |
+| 39 | Implement `maestro image ls` — list local images with REPOSITORY, TAG, IMAGE ID, CREATED, SIZE | 2 | #31, #12 | Formatted table output; `--format json` works; `--quiet` shows only IDs | ✅ |
+| 40 | Implement `maestro image inspect <image>` — display complete image metadata (config, layers, platform, labels) | 2 | #29 | Detailed JSON output with all OCI manifest + config information | ✅ |
+| 41 | Implement `maestro image history <image>` — display layer history with size and command that created each one | 2 | #29 | Shows each layer with CREATED BY, SIZE, and whether it is an empty layer | ✅ |
+| 42 | Implement `maestro image rm <image>` — remove local image (with dependent container check) | 2 | #29, #17 | Image removed; error if active container depends on it; `--force` removes anyway | ✅ |
 
 **Milestone 1.2 acceptance criteria:** `maestro pull nginx:latest` + `maestro images` + `maestro image inspect nginx` work. Auth with Docker Hub works. Multi-platform pull works.
 

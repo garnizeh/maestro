@@ -18,6 +18,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-go@v6
+        id: setup-go
         with:
           go-version-file: "go.mod"
       - name: Run GoReleaser
@@ -28,3 +29,4 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOVERSION: ${{ steps.setup-go.outputs.go-version }}

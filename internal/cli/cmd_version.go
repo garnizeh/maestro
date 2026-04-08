@@ -21,7 +21,7 @@ func newVersionCmd() *cobra.Command {
 			format := globalFlags.Format
 
 			switch strings.ToLower(format) {
-			case "json":
+			case string(FormatJSON):
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(info)

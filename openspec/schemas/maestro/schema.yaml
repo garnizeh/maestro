@@ -1,0 +1,119 @@
+name: maestro
+version: 1
+description: |
+  Maestro OCI Manager workflow. Extends spec-driven with mandatory testing,
+  Dark Tower naming conventions, and the Four Laws (test, document, commit, roadmap).
+
+artifacts:
+  - id: proposal
+    generates: proposal.md
+    description: Change proposal — WHY this is needed
+    template: proposal.md
+    instruction: |
+      Create the proposal document establishing WHY this change is needed.
+
+      REQUIRED sections:
+      - **Phase/Milestone**: Which phase and milestone from roadmap.md
+      - **Why**: 1-2 sentences on the problem or opportunity
+      - **Affected Components**: List Dark Tower component names
+      - **What Changes**: Bullet list. Mark breaking changes with **BREAKING**
+      - **Capabilities**:
+        - New Capabilities: Each becomes specs/<dark-tower-name>/spec.md
+        - Modified Capabilities: Existing capabilities whose requirements change
+      - **Impact**: Affected code paths, interfaces, dependencies
+      - **Test Strategy**: How will changes be verified (unit, integration, e2e)
+    requires: []
+
+  - id: specs
+    generates: "specs/**/*.md"
+    description: Behavioral specifications — WHAT the system does
+    template: spec.md
+    instruction: |
+      Create delta spec files defining WHAT the system should do.
+      One spec file per capability listed in the proposal.
+
+      RULES:
+      - Domain names use Dark Tower convention (maturin-image, gan-lifecycle, etc.)
+      - Requirements use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+      - Every requirement MUST have at least one scenario with WHEN/THEN
+      - Scenarios MUST be directly translatable to Go test cases
+      - NO implementation details in specs
+      - MODIFIED requirements must include FULL updated content
+
+      Delta operations (use ## headers):
+      - ADDED Requirements: New capabilities
+      - MODIFIED Requirements: Changed behavior
+      - REMOVED Requirements: Deprecated features (with Reason and Migration)
+      - RENAMED Requirements: Name changes (FROM:/TO: format)
+    requires:
+      - proposal
+
+  - id: design
+    generates: design.md
+    description: Technical design — HOW to implement
+    template: design.md
+    instruction: |
+      Create when: cross-component changes, new dependency, data model changes,
+      security-sensitive changes, performance-critical paths.
+
+      REQUIRED sections:
+      - Context: Reference design-document.md sections
+      - Decisions: With rationale and alternatives considered
+      - Component interactions: Mermaid sequence diagrams
+      - Dark Tower naming: For any new internal names
+      - Test approach: What types of tests cover this design
+    requires:
+      - proposal
+
+  - id: tasks
+    generates: tasks.md
+    description: Implementation checklist — STEPS to build
+    template: tasks.md
+    instruction: |
+      Create implementation tasks as checkboxes.
+
+      NOTE: design.md SHOULD be created for complex changes (cross-component,
+      new dependencies, data model changes) but MAY be omitted for simple ones.
+
+      RULES:
+      - Group by Dark Tower component (## Maturin, ## Gan, ## Beam, etc.)
+      - Each task: - [ ] X.Y Description (Roadmap #N)
+      - Order by dependency
+      - Every group MUST end with test + doc verification tasks
+
+      MANDATORY task patterns per group:
+      1. Implementation tasks
+      2. - [ ] X.N Write/update unit tests (coverage >= 70%)
+      3. - [ ] X.N Update --help text (if CLI changed)
+      4. - [ ] X.N Update delta specs in this change
+
+      MANDATORY final group:
+      ## Verification
+      - [ ] V.1 All unit tests pass (make test)
+      - [ ] V.2 Integration tests pass (make test-integration)
+      - [ ] V.3 Lint passes (make lint)
+      - [ ] V.4 Delta specs reflect implemented behavior
+      - [ ] V.5 PR created with all changes
+    requires:
+      - specs
+
+apply:
+  requires: [tasks]
+  tracks: tasks.md
+  instruction: |
+    You are implementing a Maestro change. Follow the Four Laws STRICTLY:
+
+    LAW I - Tests: Write test FIRST. make test MUST pass. Coverage >= 70%.
+    LAW II - Docs: Update specs, --help, design docs as needed.
+    LAW III - Commit: Branch per task. Conventional commits. Never commit to main.
+    LAW IV - Roadmap: Update roadmap.md task status (in-progress/complete). CHANGELOG for user-facing changes. Every PR MUST reference roadmap tasks.
+
+    WORKFLOW:
+    1. Read proposal.md, specs/, design.md, tasks.md
+    2. Create branch: p<phase>/<milestone>/<task-range>-<desc>
+    3. For EACH task: test first → implement → make test → make lint → commit → mark [x]
+    4. Run Verification group
+    5. Create PR referencing the OpenSpec change
+
+    If blocked: document in tasks.md, move to next unblocked task, return later.
+    If spec is wrong: update delta spec, don't silently deviate.
