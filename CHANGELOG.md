@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.2](https://github.com/garnizeh/maestro/compare/v0.1.1...v0.1.2) (2026-04-08)
+
+
+### Features
+
+* Implement container execution and lifecycle management ([7f2fc34](https://github.com/garnizeh/maestro/commit/7f2fc34e7c7724ebfe5c14a01b06af62453d7350))
+* Implement container execution and lifecycle management ([8a3a743](https://github.com/garnizeh/maestro/commit/8a3a7430e2c40fb46ee54b33ba7002c0a9a6669f))
+
 ## [0.1.1](https://github.com/garnizeh/maestro/compare/v0.1.0...v0.1.1) (2026-04-08)
 
 
