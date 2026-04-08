@@ -32,14 +32,6 @@ func newPsCmd() *cobra.Command {
 	}
 }
 
-func newPullCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "pull",
-		Short: "Pull an image from a registry (shortcut for 'image pull')",
-		RunE:  func(_ *cobra.Command, _ []string) error { return errNotImplemented },
-	}
-}
-
 func newPushCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "push",
@@ -49,25 +41,5 @@ func newPushCmd() *cobra.Command {
 }
 
 func newImagesCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "images",
-		Short: "List images (shortcut for 'image ls')",
-		RunE:  func(_ *cobra.Command, _ []string) error { return errNotImplemented },
-	}
-}
-
-func newLoginCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "login [registry]",
-		Short: "Log in to a container registry",
-		RunE:  func(_ *cobra.Command, _ []string) error { return errNotImplemented },
-	}
-}
-
-func newLogoutCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "logout [registry]",
-		Short: "Log out from a container registry",
-		RunE:  func(_ *cobra.Command, _ []string) error { return errNotImplemented },
-	}
+	return newImagesShortcut()
 }

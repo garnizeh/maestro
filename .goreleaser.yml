@@ -22,6 +22,7 @@ builds:
       - -X github.com/rodrigo-baliza/maestro/internal/cli.Version={{.Version}}
       - -X github.com/rodrigo-baliza/maestro/internal/cli.Commit={{.Commit}}
       - -X github.com/rodrigo-baliza/maestro/internal/cli.BuildDate={{.Date}}
+      - -X github.com/rodrigo-baliza/maestro/internal/cli.GoVersion={{.Env.GOVERSION}}
 
 archives:
   - id: maestro

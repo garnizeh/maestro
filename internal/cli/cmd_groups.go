@@ -56,17 +56,17 @@ func newImageCmd() *cobra.Command {
 		Aliases: []string{"i"},
 	}
 	cmd.AddCommand(
-		stubCmd("pull", "Pull an image from a registry"),
+		newPullCmd(),
 		stubCmd("push", "Push an image to a registry"),
-		stubCmd("ls", "List images", "list"),
-		stubCmd("rm", "Remove one or more images"),
-		stubCmd("inspect", "Display detailed image information"),
+		newImageLsCmd(),
+		newImageInspectCmd(),
+		newImageHistoryCmd(),
+		newImageRmCmd(),
 		stubCmd("tag", "Create a tag pointing to an image"),
 		stubCmd("save", "Save image to a tar archive"),
 		stubCmd("load", "Load image from a tar archive"),
 		stubCmd("build", "Build an image from a Dockerfile"),
 		stubCmd("prune", "Remove unused images"),
-		stubCmd("history", "Show image layer history"),
 	)
 	return cmd
 }

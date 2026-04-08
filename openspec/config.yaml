@@ -1,0 +1,43 @@
+schema: maestro
+
+context: |
+  Project: Maestro - OCI Container Manager
+  Language: Go 1.26.2+
+  Architecture: Daemonless, rootless-first
+  Naming: Dark Tower mythology (see docs/dark-tower-naming-map.md)
+  Components: Tower (engine), Maturin (images), Gan (containers),
+    Eld (runtime), Beam (network), Prim (storage), Shardik (registry),
+    White (security), Rose (artifacts), Waystation (state),
+    Positronics (API), Glass (TUI), Dinh (CLI)
+  Testing: Go test, -race always, coverage >= 70%
+  Config: TOML (katet.toml)
+  State: File-based with flock (Khef) locking
+  Protocol: docs/agent-protocol.md (mandatory for all agents)
+
+rules:
+  specs:
+    - Use Dark Tower component names in spec domain names
+    - Scenarios MUST be testable as Go test cases
+    - Use MUST/SHALL for required, SHOULD for recommended, MAY for optional
+    - Every requirement needs at least one WHEN/THEN scenario
+    - Specs describe behavior, never implementation details
+
+  tasks:
+    - Reference roadmap.md task numbers (e.g., "Roadmap #33")
+    - Each task MUST include what test(s) validate it
+    - Group tasks by component (Maturin, Gan, Beam, etc.)
+    - Tasks that touch CLI must include --help text update
+    - Every task group must end with a verification task
+    - Final group is always Verification with make test/lint/integration
+
+  design:
+    - Reference design-document.md sections
+    - Include mermaid diagrams for data flows
+    - Document Dark Tower naming for new components
+    - Include performance considerations for hot paths
+
+  proposal:
+    - Reference Phase/Milestone from roadmap.md
+    - List affected Dark Tower components explicitly
+    - Mark breaking changes with **BREAKING**
+    - Include test strategy

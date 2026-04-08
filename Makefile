@@ -16,7 +16,7 @@ LDFLAGS := -X $(MODULE)/internal/cli.Version=$(VERSION) \
 STATIC_LDFLAGS := $(LDFLAGS) -w -s -extldflags "-static"
 
 .PHONY: help build build-static install test test-integration test-e2e \
-        lint fmt clean generate completions ci-local
+        lint vuln fmt clean generate completions ci-local
 
 help: ## Display available targets
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n\nTargets:\n"} \
@@ -43,6 +43,9 @@ test-e2e: ## Run end-to-end tests (requires full environment)
 lint: ## Run golangci-lint
 	golangci-lint run ./...
 
+vuln: ## Run govulncheck
+	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
 fmt: ## Format code with gofmt
 	gofmt -w -s .
 	go fix ./...
@@ -58,15 +61,15 @@ ci-local: ## Run the same checks as CI (lint → vuln → test → build → smo
 	@echo "==> lint config verify"
 	golangci-lint config verify
 	@echo "==> lint"
-	golangci-lint run ./...
+	$(MAKE) lint
 	@echo "==> vuln"
-	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+	$(MAKE) vuln
 	@echo "==> test"
-	go test -race -count=1 -cover ./internal/...
+	$(MAKE) test
 	@echo "==> build"
-	go build -ldflags "$(LDFLAGS)" -o ./bin/$(BINARY) $(CMD)
+	$(MAKE) build
 	@echo "==> build-static"
-	CGO_ENABLED=0 go build -ldflags "$(STATIC_LDFLAGS)" -o ./bin/$(BINARY)-static $(CMD)
+	$(MAKE) build-static
 	@echo "==> smoke"
 	./bin/$(BINARY) version
 	@echo "==> OK — all CI checks passed locally"

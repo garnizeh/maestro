@@ -91,7 +91,7 @@ maestro/
 
 ## Prerequisites
 
-- Go 1.26.1+
+- Go 1.26.2+
 - Git
 - An OCI runtime: [crun](https://github.com/containers/crun) (recommended), [runc](https://github.com/opencontainers/runc), or [youki](https://github.com/youki-dev/youki)
 - [conmon-rs](https://github.com/containers/conmon-rs) (container monitor)
@@ -244,7 +244,7 @@ Full details: [docs/roadmap.md](docs/roadmap.md)
 
 | Category | Choice |
 |----------|--------|
-| Language | Go 1.26.1+ |
+| Language | Go 1.26.2+ |
 | CLI | [cobra](https://github.com/spf13/cobra) v1.10+ |
 | TUI | [bubbletea](https://github.com/charmbracelet/bubbletea) v2 + [lipgloss](https://github.com/charmbracelet/lipgloss) v2 |
 | Registry | [go-containerregistry](https://github.com/google/go-containerregistry) v0.21+ |

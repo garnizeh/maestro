@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: ["main", "p*/**"]
+    branches: ["main"]
   pull_request:
     branches: ["main"]
 
@@ -22,6 +22,7 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.11.3
+          args: ./...
 
   test:
     name: Test (${{ matrix.os }} / ${{ matrix.arch }})
@@ -43,11 +44,6 @@ jobs:
           go-version-file: "go.mod"
       - name: Run unit tests
         run: make test
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
-        if: matrix.os == 'linux' && matrix.arch == 'amd64'
-        with:
-          flags: unit
 
   vuln:
     name: Vulnerability scan
@@ -58,7 +54,7 @@ jobs:
         with:
           go-version-file: "go.mod"
       - name: govulncheck
-        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+        run: make vuln
 
   build:
     name: Build
