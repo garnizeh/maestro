@@ -1,6 +1,6 @@
 module github.com/rodrigo-baliza/maestro
 
-go 1.26.1
+go 1.26.2
 
 require (
 	github.com/google/go-containerregistry v0.21.3

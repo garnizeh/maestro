@@ -2,7 +2,7 @@ schema: maestro
 
 context: |
   Project: Maestro - OCI Container Manager
-  Language: Go 1.26.1+
+  Language: Go 1.26.2+
   Architecture: Daemonless, rootless-first
   Naming: Dark Tower mythology (see docs/dark-tower-naming-map.md)
   Components: Tower (engine), Maturin (images), Gan (containers),

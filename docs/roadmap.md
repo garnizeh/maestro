@@ -80,10 +80,10 @@ gantt
 
 | # | Task | Complexity | Deps | Acceptance Criteria | Done |
 |---|--------|:-----------:|------|-------------------| :--: |
-| 1 | Update `go.mod` to Go 1.26.1+, add core dependencies (cobra, zerolog, go-toml) | 1 | — | `go build ./...` compiles without errors | ✅ |
+| 1 | Update `go.mod` to Go 1.26.2+, add core dependencies (cobra, zerolog, go-toml) | 1 | — | `go build ./...` compiles without errors | ✅ |
 | 2 | Configure `golangci-lint` with strict rules (`.golangci.yml`) | 1 | — | `make lint` runs and passes on scaffold | ✅ |
 | 3 | Update `Makefile` with targets: build, build-static, install, test, test-integration, test-e2e, lint, fmt, clean, generate, completions | 2 | #1 | All targets execute (test targets may have 0 tests) | ✅ |
-| 4 | Create GitHub Actions CI workflow (`.github/workflows/ci.yml`): lint, test, build on Go 1.26.1, matrix linux/amd64+arm64 | 2 | #2, #3 | Push to main runs CI successfully | ✅ |
+| 4 | Create GitHub Actions CI workflow (`.github/workflows/ci.yml`): lint, test, build on Go 1.26.2, matrix linux/amd64+arm64 | 2 | #2, #3 | Push to main runs CI successfully | ✅ |
 | 5 | Create GitHub Actions release workflow (`.github/workflows/release.yml`): goreleaser with static binaries, checksums, automatic changelog | 2 | #4 | Tag `v0.0.1-alpha` generates release with binaries | ✅ |
 | 6 | Add `.goreleaser.yml` with builds for linux/amd64, linux/arm64 | 1 | #5 | goreleaser validates config | ✅ |
 

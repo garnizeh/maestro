@@ -166,6 +166,7 @@ The daemonless architecture is the correct choice for Maestro. The analysis:
 **Positronics — Optional socket mode for advanced use cases:**
 
 Some operations benefit from a persistent process:
+
 - **Ka-shume (event streaming)** — `maestro events --follow`
 - **Breaker (background GC)** — periodic cleanup without user intervention
 - **Container monitoring** — health checks, restart policies
@@ -185,6 +186,7 @@ systemctl --user enable --now maestro
 ```
 
 The Positronics process:
+
 - Runs as the invoking user (never root)
 - Stores state in `$XDG_RUNTIME_DIR/maestro/`
 - Uses Khef (flock-based locking) to coordinate with concurrent CLI invocations
@@ -214,6 +216,7 @@ sequenceDiagram
 ```
 
 **Cort** (conmon-rs — the weapons master who watches over his charges):
+
 - Lightweight (~2MB RSS per container)
 - Handles stdio forwarding, logging, and exit code collection
 - Independent of the CLI process lifecycle
@@ -250,6 +253,7 @@ graph LR
 ```
 
 **Khef — Locking strategy:**
+
 - Per-resource `flock()` locks (container, image, volume, network)
 - Lock files in `thinnies/<resource-type>/<id>.lock`
 - Read locks for inspection, write locks for mutations
@@ -336,6 +340,7 @@ sequenceDiagram
 **Deduplication:** Layers are stored by content digest. Identical content produces identical digests — if `nginx:latest` and `nginx:1.25` share 3 of 4 layers, those 3 are stored once.
 
 **Reap — Cache eviction (Charyou tree, "come reap"):**
+
 1. **LRU by last-access time** — track `atime` or custom metadata
 2. **Reference counting** — each manifest references layers; unreferenced blobs eligible for reaping
 3. **Max storage limit** — configurable via `katet.toml` (`storage.max_size = "50GB"`)
@@ -358,6 +363,7 @@ graph TD
 ```
 
 Keystone selection algorithm:
+
 1. Exact match: `os` + `architecture` + `variant`
 2. Fallback: `os` + `architecture` (ignore variant)
 3. Error: no compatible Keystone found
@@ -457,11 +463,13 @@ type Eld interface {
 ```
 
 **Pathfinder — Runtime discovery:**
+
 1. Explicit config: `runtime.path = "/usr/bin/crun"` in `katet.toml`
 2. `$PATH` lookup: `crun` -> `runc` -> `youki` (preference order)
 3. Error if no gunslinger found
 
 **Runtime selection per-container:**
+
 ```bash
 maestro run --runtime crun nginx         # Fast startup (crun's speed)
 maestro run --runtime runsc nginx        # gVisor sandbox (Todash isolation)
@@ -611,6 +619,7 @@ Maestro creates a default bridge network called **beam0** on first use:
 > *"Pere Callahan knows everyone in the Calla by name."*
 
 Callahan is a lightweight embedded DNS resolver (inspired by Aardvark-dns) per network:
+
 - Resolves container names and aliases within the same Beam (network)
 - Forwards external queries to host DNS servers
 - Listens on `127.0.0.53` inside each container's Todash (netns)
@@ -712,6 +721,7 @@ Two-phase garbage collection:
 2. **Sweep (Reap):** Remove blobs not referenced by any manifest; remove snapshots not referenced by any container; optionally reap Dogans not mounted by any container
 
 Reap is triggered:
+
 - Manually: `maestro system prune`
 - On threshold: when storage exceeds `storage.gc_threshold` (default: 80% of `storage.max_size`)
 - By Breaker: if Positronics is active, every `storage.gc_interval` (default: 24h)
@@ -762,6 +772,7 @@ sequenceDiagram
 ```
 
 **Sigul resolution order:**
+
 1. `--username`/`--password` CLI flags
 2. `$MAESTRO_REGISTRY_TOKEN` environment variable
 3. `~/.config/maestro/auth.json` (maestro-native)
@@ -1349,7 +1360,7 @@ maestro/
 
 ### 6.1 Language and Version
 
-**Go 1.26.1+** — Required for `slices`/`maps` packages, range over integers, enhanced `net/http` routing, and improved generics.
+**Go 1.26.2+** — Required for `slices`/`maps` packages, range over integers, enhanced `net/http` routing, and improved generics.
 
 ### 6.2 Key Dependencies
 
@@ -1378,31 +1389,31 @@ BUILD_DATE := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS    := -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(BUILD_DATE)
 
 build:                    ## Build maestro binary
-	go build -ldflags "$(LDFLAGS)" -o bin/maestro ./cmd/maestro
+ go build -ldflags "$(LDFLAGS)" -o bin/maestro ./cmd/maestro
 
 build-static:             ## Build static binary (for containers)
-	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS) -s -w" -o bin/maestro ./cmd/maestro
+ CGO_ENABLED=0 go build -ldflags "$(LDFLAGS) -s -w" -o bin/maestro ./cmd/maestro
 
 install:                  ## Install to $GOPATH/bin
-	go install -ldflags "$(LDFLAGS)" ./cmd/maestro
+ go install -ldflags "$(LDFLAGS)" ./cmd/maestro
 
 test:                     ## Run unit tests
-	go test -race -count=1 ./internal/... ./pkg/...
+ go test -race -count=1 ./internal/... ./pkg/...
 
 test-integration:         ## Run integration tests (requires Eld runtime)
-	go test -race -count=1 -tags=integration ./test/integration/...
+ go test -race -count=1 -tags=integration ./test/integration/...
 
 test-e2e:                 ## Run end-to-end tests
-	go test -race -count=1 -tags=e2e ./test/e2e/...
+ go test -race -count=1 -tags=e2e ./test/e2e/...
 
 lint:                     ## Run linters
-	golangci-lint run ./...
+ golangci-lint run ./...
 
 fmt:                      ## Format code
-	gofumpt -w .
+ gofumpt -w .
 
 clean:                    ## Reap build artifacts
-	rm -rf bin/
+ rm -rf bin/
 ```
 
 ### 6.4 Testing Strategy
@@ -1441,6 +1452,7 @@ graph TD
 ```
 
 **First-run diagnostics:** `maestro system check` validates:
+
 - subuid/subgid allocation
 - Kernel version and features
 - Available Eld runtimes (Pathfinder scan)
@@ -1645,12 +1657,14 @@ service TowerService {  // System
 ## Appendix A: References
 
 ### Specifications
+
 - [OCI Image Spec v1.1.1](https://github.com/opencontainers/image-spec)
 - [OCI Distribution Spec v1.1.0](https://github.com/opencontainers/distribution-spec)
 - [OCI Runtime Spec v1.3.0](https://github.com/opencontainers/runtime-spec)
 - [CNI Spec v1.1.0](https://www.cni.dev/docs/spec/)
 
 ### Key Projects
+
 - [containerd](https://github.com/containerd/containerd) — Container runtime daemon
 - [Podman](https://github.com/containers/podman) — Daemonless container engine
 - [runc](https://github.com/opencontainers/runc) — OCI reference runtime
@@ -1660,12 +1674,14 @@ service TowerService {  // System
 - [Sigstore/cosign](https://github.com/sigstore/cosign) — Container signing
 
 ### Go Libraries
+
 - [go-containerregistry](https://github.com/google/go-containerregistry) — Shardik's foundation
 - [cobra](https://github.com/spf13/cobra) — Dinh's framework
 - [bubbletea](https://github.com/charmbracelet/bubbletea) — Glass engine
 - [lipgloss](https://github.com/charmbracelet/lipgloss) — Glass styling
 
 ### Research
+
 - See [oci-ecosystem-research.md](./oci-ecosystem-research.md) for full research document
 - See [dark-tower-naming-map.md](./dark-tower-naming-map.md) for complete naming reference with justifications
 
