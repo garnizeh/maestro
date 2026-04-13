@@ -118,6 +118,7 @@ Dinh MUST organize commands into the following subcommand groups, each correspon
 - `artifact` (Collector) -- OCI artifact operations
 - `system` (An-tet) -- system introspection and maintenance
 - `service` (Positronics) -- API server management
+- `compose` (Tet) -- multi-container application orchestration
 - `generate` -- code generation (systemd units, completions)
 - `config` -- configuration management
 
@@ -174,6 +175,12 @@ THEN it MUST list all generate subcommands: systemd, completion
 GIVEN the user invokes `maestro config --help`
 WHEN the help is displayed
 THEN it MUST list all config subcommands: show, edit
+
+#### Scenario: Compose subcommand group lists all commands
+
+GIVEN the user invokes `maestro compose --help`
+WHEN the help is displayed
+THEN it MUST list all compose subcommands: up, down, ps, logs, start, stop, restart, kill, pause, unpause, rm, pull, exec, run, scale, config, images, top, port, events, ls, build
 
 #### Scenario: Subcommand group without subcommand shows help
 
