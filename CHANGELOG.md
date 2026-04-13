@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.3](https://github.com/garnizeh/maestro/compare/v0.1.2...v0.1.3) (2026-04-13)
+
+
+### Features
+
+* **openspec:** add tet-compose specification and milestone 2.7 ([1cfead4](https://github.com/garnizeh/maestro/commit/1cfead4f972c184a9b7316b27bff9052089460dd))
+* **openspec:** add tet-compose specification and milestone 2.7 ([7ec80c1](https://github.com/garnizeh/maestro/commit/7ec80c11b5eca3ae3cf37a9c3fda4cc3a58e4308))
+
 ## [0.1.2](https://github.com/garnizeh/maestro/compare/v0.1.1...v0.1.2) (2026-04-08)
 
 
