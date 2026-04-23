@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.4](https://github.com/garnizeh/maestro/compare/v0.1.3...v0.1.4) (2026-04-23)
+
+
+### Features
+
+* embed binaries for fuse-overlayfs and pasta, add management functions ([48f0bc0](https://github.com/garnizeh/maestro/commit/48f0bc0aec8afdb79e38d0b3e3677a6f9ba8c31a))
+* Enhance OCI runtime spec generation with user namespace support and seccomp configuration ([b6f21b5](https://github.com/garnizeh/maestro/commit/b6f21b5a81d6cb5af3f303fb4113de774d9577ce))
+* Enhance OCI runtime spec generation with user namespace support and seccomp configuration ([d497588](https://github.com/garnizeh/maestro/commit/d49758823c62b658cc84cd5b972915ada2fad005))
+
+
+### Bug Fixes
+
+* reorder import statements for consistency ([f4e0a4a](https://github.com/garnizeh/maestro/commit/f4e0a4a6c45486b5bc0de52b49173fb0f9d404d3))
+
 ## [0.1.3](https://github.com/garnizeh/maestro/compare/v0.1.2...v0.1.3) (2026-04-13)
 
 
