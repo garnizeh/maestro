@@ -44,7 +44,11 @@ func TestAcquireLock_Cancelled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AcquireLock: %v", err)
 	}
-	defer func() { _ = lock.Release() }()
+	defer func() {
+		if relErr := lock.Release(); relErr != nil {
+			t.Fatalf("Release: %v", relErr)
+		}
+	}()
 
 	// Goroutine 2 tries to acquire with an already-cancelled context.
 	ctx2, cancel := context.WithCancel(context.Background())
@@ -98,7 +102,11 @@ func TestAcquireReadLock_Cancelled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AcquireLock: %v", err)
 	}
-	defer func() { _ = lock.Release() }()
+	defer func() {
+		if relErr := lock.Release(); relErr != nil {
+			t.Fatalf("Release: %v", relErr)
+		}
+	}()
 
 	// Try to acquire a read lock with an already-cancelled context.
 	ctx2, cancel := context.WithCancel(context.Background())
@@ -121,7 +129,11 @@ func TestAcquireLock_Timeout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AcquireLock: %v", err)
 	}
-	defer func() { _ = lock.Release() }()
+	defer func() {
+		if relErr := lock.Release(); relErr != nil {
+			t.Fatalf("Release: %v", relErr)
+		}
+	}()
 
 	// Try to acquire with a very short deadline.
 	ctx2, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)

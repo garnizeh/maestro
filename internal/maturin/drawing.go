@@ -13,6 +13,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/rs/zerolog/log"
 )
 
 const defaultParallelism = 4
@@ -39,7 +40,12 @@ type DrawOptions struct {
 //
 // refStr may be a tag reference ("nginx:latest") or a digest reference
 // ("nginx@sha256:…").
-func (s *Store) Draw(ctx context.Context, client RegistryClient, refStr string, opts DrawOptions) error {
+func (s *Store) Draw(
+	ctx context.Context,
+	client RegistryClient,
+	refStr string,
+	opts DrawOptions,
+) error {
 	if opts.Parallelism <= 0 {
 		opts.Parallelism = defaultParallelism
 	}
@@ -62,7 +68,13 @@ func (s *Store) Draw(ctx context.Context, client RegistryClient, refStr string, 
 	// If the top-level manifest is an image index, run Keystone platform selection.
 	imageRef := refStr
 	if isIndexMediaType(topDesc.MediaType) {
-		resolved, resolveErr := resolveIndexPlatform(ctx, client, refStr, ref.Context(), opts.Platform)
+		resolved, resolveErr := resolveIndexPlatform(
+			ctx,
+			client,
+			refStr,
+			ref.Context(),
+			opts.Platform,
+		)
 		if resolveErr != nil {
 			return resolveErr
 		}
@@ -177,7 +189,9 @@ func (s *Store) downloadLayer(layer ggcr.Layer, progress io.Writer, onDone Progr
 	shortHex := dgst.Hex()[:12]
 
 	if s.Exists(dgst) {
-		_, _ = fmt.Fprintf(progress, "layer %s: already present\n", shortHex)
+		if _, err := fmt.Fprintf(progress, "layer %s: already present\n", shortHex); err != nil {
+			log.Debug().Err(err).Msg("maturin: failed to write layer present message")
+		}
 		if onDone != nil {
 			onDone(LayerEvent{Digest: shortHex, Skipped: true, Duration: time.Since(start)})
 		}
@@ -199,9 +213,13 @@ func (s *Store) downloadLayer(layer ggcr.Layer, progress io.Writer, onDone Progr
 		return fmt.Errorf("store layer %s: %w", dgst, putErr)
 	}
 
-	_, _ = fmt.Fprintf(progress, "layer %s: pulled\n", shortHex)
+	if _, err := fmt.Fprintf(progress, "layer %s: pulled\n", shortHex); err != nil {
+		log.Debug().Err(err).Msg("maturin: failed to write layer pulled message")
+	}
 	if onDone != nil {
-		onDone(LayerEvent{Digest: shortHex, Skipped: false, Size: size, Duration: time.Since(start)})
+		onDone(
+			LayerEvent{Digest: shortHex, Skipped: false, Size: size, Duration: time.Since(start)},
+		)
 	}
 	return nil
 }

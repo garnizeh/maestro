@@ -7,11 +7,13 @@ import (
 	"strings"
 	"testing"
 	"testing/iotest"
+
+	"github.com/rodrigo-baliza/maestro/internal/shardik"
 )
 
 // execRootForLogin runs the root command for login/logout tests.
-func execRootForLogin(stdin io.Reader, args ...string) (string, error) {
-	root := NewRootCommand()
+func execRootForLogin(h *Handler, stdin io.Reader, args ...string) (string, error) {
+	root := NewRootCommand(h)
 	buf := new(bytes.Buffer)
 	root.SetOut(buf)
 	root.SetErr(buf)
@@ -23,26 +25,11 @@ func execRootForLogin(stdin io.Reader, args ...string) (string, error) {
 	return buf.String(), err
 }
 
-// cleanup resets all login DI vars and globalFlags after each test.
-func cleanupLoginDI(t *testing.T) {
-	t.Helper()
-	origSave := loginSaveFn
-	origRemove := loginRemoveFn
-	origReadPwd := loginReadPasswordFn
-	origReadLine := loginReadLineFn
-	t.Cleanup(func() {
-		loginSaveFn = origSave
-		loginRemoveFn = origRemove
-		loginReadPasswordFn = origReadPwd
-		loginReadLineFn = origReadLine
-		globalFlags = GlobalFlags{}
-	})
-}
-
 // --- login tests ---
 
 func TestLoginCmd_HelpFlag(t *testing.T) {
-	out, err := execRootForLogin(nil, "login", "--help")
+	h := NewHandler()
+	out, err := execRootForLogin(h, nil, "login", "--help")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -54,15 +41,16 @@ func TestLoginCmd_HelpFlag(t *testing.T) {
 }
 
 func TestLoginCmd_TooManyArgs(t *testing.T) {
-	_, err := execRootForLogin(nil, "login", "reg1", "reg2")
+	h := NewHandler()
+	_, err := execRootForLogin(h, nil, "login", "reg1", "reg2")
 	if err == nil {
 		t.Fatal("expected error for too many args")
 	}
 }
 
 func TestLoginCmd_PasswordStdin_RequiresUsername(t *testing.T) {
-	cleanupLoginDI(t)
-	_, err := execRootForLogin(nil, "login", "--password-stdin", "ghcr.io")
+	h := NewHandler()
+	_, err := execRootForLogin(h, nil, "login", "--password-stdin", "ghcr.io")
 	if err == nil {
 		t.Fatal("expected error when --password-stdin used without --username")
 	}
@@ -72,14 +60,14 @@ func TestLoginCmd_PasswordStdin_RequiresUsername(t *testing.T) {
 }
 
 func TestLoginCmd_AllFlags_DefaultRegistry(t *testing.T) {
-	cleanupLoginDI(t)
+	h := NewHandler()
 	var capturedReg, capturedUser, capturedPass string
-	loginSaveFn = func(reg, user, pass, _ string) error {
+	h.LoginSaveFn = func(reg, user, pass string, _ shardik.SigulConfig) error {
 		capturedReg, capturedUser, capturedPass = reg, user, pass
 		return nil
 	}
 
-	out, err := execRootForLogin(nil, "login", "-u", "alice", "-p", "secret")
+	out, err := execRootForLogin(h, nil, "login", "-u", "alice", "-p", "secret")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -98,11 +86,11 @@ func TestLoginCmd_AllFlags_DefaultRegistry(t *testing.T) {
 }
 
 func TestLoginCmd_ExplicitRegistry(t *testing.T) {
-	cleanupLoginDI(t)
+	h := NewHandler()
 	var capturedReg string
-	loginSaveFn = func(reg, _, _, _ string) error { capturedReg = reg; return nil }
+	h.LoginSaveFn = func(reg, _, _ string, _ shardik.SigulConfig) error { capturedReg = reg; return nil }
 
-	if _, err := execRootForLogin(nil, "login", "-u", "u", "-p", "p", "ghcr.io"); err != nil {
+	if _, err := execRootForLogin(h, nil, "login", "-u", "u", "-p", "p", "ghcr.io"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if capturedReg != "ghcr.io" {
@@ -111,13 +99,13 @@ func TestLoginCmd_ExplicitRegistry(t *testing.T) {
 }
 
 func TestLoginCmd_PromptUsername(t *testing.T) {
-	cleanupLoginDI(t)
+	h := NewHandler()
 	var capturedUser string
-	loginSaveFn = func(_, user, _, _ string) error { capturedUser = user; return nil }
-	loginReadPasswordFn = func() (string, error) { return "pwd", nil }
+	h.LoginSaveFn = func(_, user, _ string, _ shardik.SigulConfig) error { capturedUser = user; return nil }
+	h.LoginReadPasswordFn = func() (string, error) { return "pwd", nil }
 
 	// stdin provides the username; password comes from the mock
-	_, err := execRootForLogin(strings.NewReader("bob\n"), "login")
+	_, err := execRootForLogin(h, strings.NewReader("bob\n"), "login")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -127,11 +115,11 @@ func TestLoginCmd_PromptUsername(t *testing.T) {
 }
 
 func TestLoginCmd_PromptUsername_Error(t *testing.T) {
-	cleanupLoginDI(t)
+	h := NewHandler()
 	readErr := errors.New("stdin closed")
-	loginReadLineFn = func(_ io.Reader) (string, error) { return "", readErr }
+	h.LoginReadLineFn = func(_ io.Reader) (string, error) { return "", readErr }
 
-	_, err := execRootForLogin(nil, "login")
+	_, err := execRootForLogin(h, nil, "login")
 	if err == nil {
 		t.Fatal("expected error reading username")
 	}
@@ -141,11 +129,18 @@ func TestLoginCmd_PromptUsername_Error(t *testing.T) {
 }
 
 func TestLoginCmd_PasswordStdin_Success(t *testing.T) {
-	cleanupLoginDI(t)
+	h := NewHandler()
 	var capturedPass string
-	loginSaveFn = func(_, _, pass, _ string) error { capturedPass = pass; return nil }
+	h.LoginSaveFn = func(_, _, pass string, _ shardik.SigulConfig) error { capturedPass = pass; return nil }
 
-	_, err := execRootForLogin(strings.NewReader("s3cret\n"), "login", "-u", "alice", "--password-stdin")
+	_, err := execRootForLogin(
+		h,
+		strings.NewReader("s3cret\n"),
+		"login",
+		"-u",
+		"alice",
+		"--password-stdin",
+	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -155,11 +150,11 @@ func TestLoginCmd_PasswordStdin_Success(t *testing.T) {
 }
 
 func TestLoginCmd_PasswordStdin_Error(t *testing.T) {
-	cleanupLoginDI(t)
+	h := NewHandler()
 	readErr := errors.New("pipe broken")
-	loginReadLineFn = func(_ io.Reader) (string, error) { return "", readErr }
+	h.LoginReadLineFn = func(_ io.Reader) (string, error) { return "", readErr }
 
-	_, err := execRootForLogin(nil, "login", "-u", "alice", "--password-stdin")
+	_, err := execRootForLogin(h, nil, "login", "-u", "alice", "--password-stdin")
 	if err == nil {
 		t.Fatal("expected error reading password from stdin")
 	}
@@ -169,12 +164,12 @@ func TestLoginCmd_PasswordStdin_Error(t *testing.T) {
 }
 
 func TestLoginCmd_PasswordPrompt(t *testing.T) {
-	cleanupLoginDI(t)
+	h := NewHandler()
 	var capturedPass string
-	loginSaveFn = func(_, _, pass, _ string) error { capturedPass = pass; return nil }
-	loginReadPasswordFn = func() (string, error) { return "interactive!", nil }
+	h.LoginSaveFn = func(_, _, pass string, _ shardik.SigulConfig) error { capturedPass = pass; return nil }
+	h.LoginReadPasswordFn = func() (string, error) { return "interactive!", nil }
 
-	_, err := execRootForLogin(strings.NewReader("carol\n"), "login")
+	_, err := execRootForLogin(h, strings.NewReader("carol\n"), "login")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -184,11 +179,11 @@ func TestLoginCmd_PasswordPrompt(t *testing.T) {
 }
 
 func TestLoginCmd_PasswordPrompt_Error(t *testing.T) {
-	cleanupLoginDI(t)
+	h := NewHandler()
 	pwdErr := errors.New("terminal error")
-	loginReadPasswordFn = func() (string, error) { return "", pwdErr }
+	h.LoginReadPasswordFn = func() (string, error) { return "", pwdErr }
 
-	_, err := execRootForLogin(strings.NewReader("dave\n"), "login")
+	_, err := execRootForLogin(h, strings.NewReader("dave\n"), "login")
 	if err == nil {
 		t.Fatal("expected error from password prompt")
 	}
@@ -198,11 +193,11 @@ func TestLoginCmd_PasswordPrompt_Error(t *testing.T) {
 }
 
 func TestLoginCmd_SaveError(t *testing.T) {
-	cleanupLoginDI(t)
+	h := NewHandler()
 	saveErr := errors.New("disk full")
-	loginSaveFn = func(_, _, _, _ string) error { return saveErr }
+	h.LoginSaveFn = func(_, _, _ string, _ shardik.SigulConfig) error { return saveErr }
 
-	_, err := execRootForLogin(nil, "login", "-u", "u", "-p", "p")
+	_, err := execRootForLogin(h, nil, "login", "-u", "u", "-p", "p")
 	if err == nil {
 		t.Fatal("expected save error")
 	}
@@ -212,10 +207,10 @@ func TestLoginCmd_SaveError(t *testing.T) {
 }
 
 func TestLoginCmd_Quiet(t *testing.T) {
-	cleanupLoginDI(t)
-	loginSaveFn = func(_, _, _, _ string) error { return nil }
+	h := NewHandler()
+	h.LoginSaveFn = func(_, _, _ string, _ shardik.SigulConfig) error { return nil }
 
-	out, err := execRootForLogin(nil, "--quiet", "login", "-u", "u", "-p", "p")
+	out, err := execRootForLogin(h, nil, "--quiet", "login", "-u", "u", "-p", "p")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -227,7 +222,8 @@ func TestLoginCmd_Quiet(t *testing.T) {
 // --- logout tests ---
 
 func TestLogoutCmd_HelpFlag(t *testing.T) {
-	out, err := execRootForLogin(nil, "logout", "--help")
+	h := NewHandler()
+	out, err := execRootForLogin(h, nil, "logout", "--help")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -237,18 +233,19 @@ func TestLogoutCmd_HelpFlag(t *testing.T) {
 }
 
 func TestLogoutCmd_TooManyArgs(t *testing.T) {
-	_, err := execRootForLogin(nil, "logout", "reg1", "reg2")
+	h := NewHandler()
+	_, err := execRootForLogin(h, nil, "logout", "reg1", "reg2")
 	if err == nil {
 		t.Fatal("expected error for too many args")
 	}
 }
 
 func TestLogoutCmd_DefaultRegistry(t *testing.T) {
-	cleanupLoginDI(t)
+	h := NewHandler()
 	var capturedReg string
-	loginRemoveFn = func(reg, _ string) error { capturedReg = reg; return nil }
+	h.LoginRemoveFn = func(reg string, _ shardik.SigulConfig) error { capturedReg = reg; return nil }
 
-	out, err := execRootForLogin(nil, "logout")
+	out, err := execRootForLogin(h, nil, "logout")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -261,11 +258,11 @@ func TestLogoutCmd_DefaultRegistry(t *testing.T) {
 }
 
 func TestLogoutCmd_ExplicitRegistry(t *testing.T) {
-	cleanupLoginDI(t)
+	h := NewHandler()
 	var capturedReg string
-	loginRemoveFn = func(reg, _ string) error { capturedReg = reg; return nil }
+	h.LoginRemoveFn = func(reg string, _ shardik.SigulConfig) error { capturedReg = reg; return nil }
 
-	if _, err := execRootForLogin(nil, "logout", "quay.io"); err != nil {
+	if _, err := execRootForLogin(h, nil, "logout", "quay.io"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if capturedReg != "quay.io" {
@@ -274,11 +271,11 @@ func TestLogoutCmd_ExplicitRegistry(t *testing.T) {
 }
 
 func TestLogoutCmd_RemoveError(t *testing.T) {
-	cleanupLoginDI(t)
+	h := NewHandler()
 	removeErr := errors.New("permission denied")
-	loginRemoveFn = func(_, _ string) error { return removeErr }
+	h.LoginRemoveFn = func(_ string, _ shardik.SigulConfig) error { return removeErr }
 
-	_, err := execRootForLogin(nil, "logout")
+	_, err := execRootForLogin(h, nil, "logout")
 	if err == nil {
 		t.Fatal("expected remove error")
 	}
@@ -288,10 +285,10 @@ func TestLogoutCmd_RemoveError(t *testing.T) {
 }
 
 func TestLogoutCmd_Quiet(t *testing.T) {
-	cleanupLoginDI(t)
-	loginRemoveFn = func(_, _ string) error { return nil }
+	h := NewHandler()
+	h.LoginRemoveFn = func(_ string, _ shardik.SigulConfig) error { return nil }
 
-	out, err := execRootForLogin(nil, "--quiet", "logout")
+	out, err := execRootForLogin(h, nil, "--quiet", "logout")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

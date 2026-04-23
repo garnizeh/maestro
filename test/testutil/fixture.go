@@ -93,7 +93,13 @@ func InsecureTransport() *http.Transport {
 
 // FakeDigest returns a syntactically valid but nonexistent SHA-256 digest for
 // use in tests that need a hash value without pushing real content.
-func FakeDigest() v1.Hash {
-	h, _ := v1.NewHash("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+func FakeDigest(t *testing.T) v1.Hash {
+	t.Helper()
+
+	h, err := v1.NewHash("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	if err != nil {
+		t.Fatalf("v1.NewHash: %v", err)
+	}
+
 	return h
 }

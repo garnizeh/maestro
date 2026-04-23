@@ -10,38 +10,12 @@ import (
 
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
-
-	"github.com/rodrigo-baliza/maestro/internal/shardik"
 )
-
-// loginSaveFn is the DI point for saving credentials.
-// Overridden in tests to avoid real filesystem writes.
-//
-//nolint:gochecknoglobals // dependency injection point: overridden in tests
-var loginSaveFn = shardik.SaveCredentials
-
-// loginRemoveFn is the DI point for removing credentials.
-// Overridden in tests to avoid real filesystem writes.
-//
-//nolint:gochecknoglobals // dependency injection point: overridden in tests
-var loginRemoveFn = shardik.RemoveCredentials
-
-// loginReadPasswordFn reads a password without echoing to the terminal.
-// Overridden in tests to avoid requiring a real TTY.
-//
-//nolint:gochecknoglobals // dependency injection point: overridden in tests
-var loginReadPasswordFn = defaultReadPassword
-
-// loginReadLineFn reads a single line from the given reader.
-// Overridden in tests for error injection on the stdin read path.
-//
-//nolint:gochecknoglobals // dependency injection point: overridden in tests
-var loginReadLineFn = defaultReadLine
 
 // defaultRegistry is the implicit registry when none is specified on the command line.
 const defaultRegistry = "docker.io"
 
-func newLoginCmd() *cobra.Command {
+func newLoginCmd(h *Handler) *cobra.Command {
 	var username, password string
 	var passwordStdin bool
 
@@ -54,7 +28,7 @@ func newLoginCmd() *cobra.Command {
 			if len(args) == 1 {
 				registry = args[0]
 			}
-			return runLogin(cmd, registry, username, password, passwordStdin)
+			return runLogin(h, cmd, registry, username, password, passwordStdin)
 		},
 	}
 	cmd.Flags().StringVarP(&username, "username", "u", "", "Username")
@@ -63,7 +37,12 @@ func newLoginCmd() *cobra.Command {
 	return cmd
 }
 
-func runLogin(cmd *cobra.Command, registry, username, password string, passwordStdin bool) error {
+func runLogin(
+	h *Handler,
+	cmd *cobra.Command,
+	registry, username, password string,
+	passwordStdin bool,
+) error {
 	// --password-stdin reads password from stdin; username must come from the flag
 	// to avoid consuming stdin for both inputs.
 	if passwordStdin && username == "" {
@@ -72,8 +51,10 @@ func runLogin(cmd *cobra.Command, registry, username, password string, passwordS
 
 	// Resolve username interactively if not provided via flag.
 	if username == "" {
-		_, _ = fmt.Fprint(cmd.ErrOrStderr(), "Username: ")
-		u, err := loginReadLineFn(cmd.InOrStdin())
+		if _, err := fmt.Fprint(cmd.ErrOrStderr(), "Username: "); err != nil {
+			return fmt.Errorf("write username prompt: %w", err)
+		}
+		u, err := h.LoginReadLineFn(cmd.InOrStdin())
 		if err != nil {
 			return fmt.Errorf("read username: %w", err)
 		}
@@ -85,32 +66,38 @@ func runLogin(cmd *cobra.Command, registry, username, password string, passwordS
 	case password != "":
 		// provided via --password flag; use as-is
 	case passwordStdin:
-		p, err := loginReadLineFn(cmd.InOrStdin())
+		p, err := h.LoginReadLineFn(cmd.InOrStdin())
 		if err != nil {
 			return fmt.Errorf("read password from stdin: %w", err)
 		}
 		password = strings.TrimSpace(p)
 	default:
-		_, _ = fmt.Fprint(cmd.ErrOrStderr(), "Password: ")
-		p, err := loginReadPasswordFn()
+		if _, err := fmt.Fprint(cmd.ErrOrStderr(), "Password: "); err != nil {
+			return fmt.Errorf("write password prompt: %w", err)
+		}
+		p, err := h.LoginReadPasswordFn()
 		if err != nil {
 			return fmt.Errorf("read password: %w", err)
 		}
-		_, _ = fmt.Fprintln(cmd.ErrOrStderr()) // newline after hidden input
+		if _, newlineErr := fmt.Fprintln(cmd.ErrOrStderr()); newlineErr != nil {
+			return fmt.Errorf("write newline after password: %w", newlineErr)
+		}
 		password = p
 	}
 
-	if err := loginSaveFn(registry, username, password, ""); err != nil {
+	if err := h.LoginSaveFn(registry, username, password, h.SigulConfig()); err != nil {
 		return fmt.Errorf("save credentials for %s: %w", registry, err)
 	}
 
-	if !globalFlags.Quiet {
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Login Succeeded")
+	if !h.Quiet {
+		if _, err := fmt.Fprintln(cmd.OutOrStdout(), "Login Succeeded"); err != nil {
+			return fmt.Errorf("write login success: %w", err)
+		}
 	}
 	return nil
 }
 
-func newLogoutCmd() *cobra.Command {
+func newLogoutCmd(h *Handler) *cobra.Command {
 	return &cobra.Command{
 		Use:   "logout [SERVER]",
 		Short: "Log out from a container registry",
@@ -120,17 +107,17 @@ func newLogoutCmd() *cobra.Command {
 			if len(args) == 1 {
 				registry = args[0]
 			}
-			return runLogout(cmd, registry)
+			return runLogout(h, cmd, registry)
 		},
 	}
 }
 
-func runLogout(cmd *cobra.Command, registry string) error {
-	if err := loginRemoveFn(registry, ""); err != nil {
+func runLogout(h *Handler, cmd *cobra.Command, registry string) error {
+	if err := h.LoginRemoveFn(registry, h.SigulConfig()); err != nil {
 		return fmt.Errorf("remove credentials for %s: %w", registry, err)
 	}
-	if !globalFlags.Quiet {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Removing login credentials for %s\n", registry)
+	if !h.Quiet {
+		printFf(cmd.OutOrStdout(), "Removing login credentials for %s\n", registry)
 	}
 	return nil
 }

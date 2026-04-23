@@ -17,11 +17,15 @@ package prim
 import (
 	"context"
 	"errors"
+
+	"github.com/rodrigo-baliza/maestro/pkg/archive"
 )
 
 const (
 	// dirPerm is the default permission for snapshot directories.
 	dirPerm = 0o700
+	// fsDirPerm must allow traversal by non-root users inside the container.
+	fsDirPerm = 0o755
 	// filePerm is the default permission for snapshot metadata and log files.
 	filePerm = 0o600
 )
@@ -121,4 +125,11 @@ type Prim interface {
 
 	// Usage returns disk consumption for the snapshot identified by key.
 	Usage(ctx context.Context, key string) (Usage, error)
+	// WritableDir returns the absolute path to the writable directory
+	// for the given snapshot. For simple drivers (VFS), this is the
+	// same as the rootfs path. For OverlayFS, this is the upper layer.
+	WritableDir(key string) string
+
+	// WhiteoutFormat returns the whiteout handling strategy for this driver.
+	WhiteoutFormat() archive.WhiteoutFormat
 }

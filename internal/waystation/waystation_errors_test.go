@@ -21,7 +21,11 @@ func TestInit_MkdirError(t *testing.T) {
 	if err := os.Chmod(parent, 0o500); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(parent, 0o700) })
+	t.Cleanup(func() {
+		if err := os.Chmod(parent, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	s := waystation.New(filepath.Join(parent, "maestro"))
 	if err := s.Init(); err == nil {
@@ -38,7 +42,11 @@ func TestPut_MkdirError(t *testing.T) {
 	if err := os.Chmod(parent, 0o500); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(parent, 0o700) })
+	t.Cleanup(func() {
+		if err := os.Chmod(parent, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	s := waystation.New(parent)
 	if err := s.Put("containers", "key", struct{}{}); err == nil {
@@ -60,7 +68,11 @@ func TestPut_CreateTempError(t *testing.T) {
 	if err := os.Chmod(collDir, 0o500); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(collDir, 0o700) })
+	t.Cleanup(func() {
+		if err := os.Chmod(collDir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	if err := s.Put("containers", "key", struct{}{}); err == nil {
 		t.Error("expected error when collection dir is not writable")
@@ -81,7 +93,11 @@ func TestGet_ReadError(t *testing.T) {
 	if err := os.WriteFile(path, []byte(`{}`), 0o000); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(path, 0o600) })
+	t.Cleanup(func() {
+		if err := os.Chmod(path, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	var v struct{}
 	err := s.Get("containers", "unreadable", &v)
@@ -119,12 +135,18 @@ func TestDelete_RemoveError(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Create the file then make its parent dir unwriteable.
-	_ = s.Put("containers", "locked", struct{}{})
+	if err := s.Put("containers", "locked", struct{}{}); err != nil {
+		t.Fatal(err)
+	}
 	collDir := filepath.Join(dir, "containers")
 	if err := os.Chmod(collDir, 0o500); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(collDir, 0o700) })
+	t.Cleanup(func() {
+		if err := os.Chmod(collDir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	err := s.Delete("containers", "locked")
 	if err == nil {
@@ -174,7 +196,11 @@ func TestList_ReadDirError(t *testing.T) {
 	if err := os.Chmod(collDir, 0o000); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(collDir, 0o700) })
+	t.Cleanup(func() {
+		if err := os.Chmod(collDir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	if _, err := s.List("containers"); err == nil {
 		t.Error("expected error for unreadable collection directory")

@@ -11,30 +11,30 @@ import (
 	"github.com/rodrigo-baliza/maestro/internal/tower"
 )
 
-func newConfigCmd() *cobra.Command {
+func newConfigCmd(h *Handler) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Manage Maestro configuration",
 	}
 	cmd.AddCommand(
-		newConfigShowCmd(),
-		newConfigEditCmd(),
+		newConfigShowCmd(h),
+		newConfigEditCmd(h),
 	)
 	return cmd
 }
 
-func newConfigShowCmd() *cobra.Command {
+func newConfigShowCmd(h *Handler) *cobra.Command {
 	return &cobra.Command{
 		Use:   "show",
 		Short: "Display the effective configuration in TOML format",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg, err := tower.LoadConfig(globalFlags.Config)
+			cfg, err := tower.LoadConfig(h.Config)
 			if err != nil {
 				return fmt.Errorf("load config: %w", err)
 			}
 
 			w := cmd.OutOrStdout()
-			switch globalFlags.Format {
+			switch h.Format {
 			case string(FormatJSON):
 				f := NewFormatter(string(FormatJSON), false)
 				out, fmtErr := f.Format(cfg)
@@ -50,7 +50,7 @@ func newConfigShowCmd() *cobra.Command {
 	}
 }
 
-func newConfigEditCmd() *cobra.Command {
+func newConfigEditCmd(h *Handler) *cobra.Command {
 	return &cobra.Command{
 		Use:   "edit",
 		Short: "Open katet.toml in $EDITOR",
@@ -63,7 +63,7 @@ func newConfigEditCmd() *cobra.Command {
 				return errors.New("no editor configured; set the EDITOR environment variable")
 			}
 
-			path, err := tower.ConfigPath(globalFlags.Config)
+			path, err := tower.ConfigPath(h.Config)
 			if err != nil {
 				return err //coverage:ignore only fails when os.UserHomeDir() fails, unreachable in unit tests
 			}

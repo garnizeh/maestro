@@ -12,8 +12,8 @@ import (
 )
 
 // execRootForImage runs the root command for image tests and returns combined output.
-func execRootForImage(args ...string) (string, error) {
-	root := NewRootCommand()
+func execRootForImage(h *Handler, args ...string) (string, error) {
+	root := NewRootCommand(h)
 	buf := new(bytes.Buffer)
 	root.SetOut(buf)
 	root.SetErr(buf)
@@ -38,7 +38,8 @@ func sampleSummaries() []maturin.ImageSummary {
 // ── image ls ─────────────────────────────────────────────────────────────────
 
 func TestImageLs_HelpFlag(t *testing.T) {
-	out, err := execRootForImage("image", "ls", "--help")
+	h := NewHandler()
+	out, err := execRootForImage(h, "image", "ls", "--help")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -48,13 +49,12 @@ func TestImageLs_HelpFlag(t *testing.T) {
 }
 
 func TestImageLs_Table(t *testing.T) {
-	orig := imageLsFn
-	imageLsFn = func(_ context.Context, _ string) ([]maturin.ImageSummary, error) {
+	h := NewHandler()
+	h.ImageLsFn = func(_ context.Context, _ string) ([]maturin.ImageSummary, error) {
 		return sampleSummaries(), nil
 	}
-	t.Cleanup(func() { imageLsFn = orig; globalFlags = GlobalFlags{} })
 
-	out, err := execRootForImage("image", "ls")
+	out, err := execRootForImage(h, "image", "ls")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -67,13 +67,12 @@ func TestImageLs_Table(t *testing.T) {
 }
 
 func TestImageLs_JSON(t *testing.T) {
-	orig := imageLsFn
-	imageLsFn = func(_ context.Context, _ string) ([]maturin.ImageSummary, error) {
+	h := NewHandler()
+	h.ImageLsFn = func(_ context.Context, _ string) ([]maturin.ImageSummary, error) {
 		return sampleSummaries(), nil
 	}
-	t.Cleanup(func() { imageLsFn = orig; globalFlags = GlobalFlags{} })
 
-	out, err := execRootForImage("image", "ls", "--format", "json")
+	out, err := execRootForImage(h, "image", "ls", "--format", "json")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -83,13 +82,12 @@ func TestImageLs_JSON(t *testing.T) {
 }
 
 func TestImageLs_Quiet(t *testing.T) {
-	orig := imageLsFn
-	imageLsFn = func(_ context.Context, _ string) ([]maturin.ImageSummary, error) {
+	h := NewHandler()
+	h.ImageLsFn = func(_ context.Context, _ string) ([]maturin.ImageSummary, error) {
 		return sampleSummaries(), nil
 	}
-	t.Cleanup(func() { imageLsFn = orig; globalFlags = GlobalFlags{} })
 
-	out, err := execRootForImage("--quiet", "image", "ls")
+	out, err := execRootForImage(h, "--quiet", "image", "ls")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -102,13 +100,12 @@ func TestImageLs_Quiet(t *testing.T) {
 }
 
 func TestImageLs_Empty(t *testing.T) {
-	orig := imageLsFn
-	imageLsFn = func(_ context.Context, _ string) ([]maturin.ImageSummary, error) {
+	h := NewHandler()
+	h.ImageLsFn = func(_ context.Context, _ string) ([]maturin.ImageSummary, error) {
 		return nil, nil
 	}
-	t.Cleanup(func() { imageLsFn = orig; globalFlags = GlobalFlags{} })
 
-	out, err := execRootForImage("image", "ls")
+	out, err := execRootForImage(h, "image", "ls")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -118,26 +115,24 @@ func TestImageLs_Empty(t *testing.T) {
 }
 
 func TestImageLs_Error(t *testing.T) {
-	orig := imageLsFn
-	imageLsFn = func(_ context.Context, _ string) ([]maturin.ImageSummary, error) {
+	h := NewHandler()
+	h.ImageLsFn = func(_ context.Context, _ string) ([]maturin.ImageSummary, error) {
 		return nil, errors.New("store error")
 	}
-	t.Cleanup(func() { imageLsFn = orig; globalFlags = GlobalFlags{} })
 
-	_, err := execRootForImage("image", "ls")
+	_, err := execRootForImage(h, "image", "ls")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
 }
 
 func TestImagesShortcut_Table(t *testing.T) {
-	orig := imageLsFn
-	imageLsFn = func(_ context.Context, _ string) ([]maturin.ImageSummary, error) {
+	h := NewHandler()
+	h.ImageLsFn = func(_ context.Context, _ string) ([]maturin.ImageSummary, error) {
 		return sampleSummaries(), nil
 	}
-	t.Cleanup(func() { imageLsFn = orig; globalFlags = GlobalFlags{} })
 
-	out, err := execRootForImage("images")
+	out, err := execRootForImage(h, "images")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -149,7 +144,8 @@ func TestImagesShortcut_Table(t *testing.T) {
 // ── image inspect ─────────────────────────────────────────────────────────────
 
 func TestImageInspect_HelpFlag(t *testing.T) {
-	out, err := execRootForImage("image", "inspect", "--help")
+	h := NewHandler()
+	out, err := execRootForImage(h, "image", "inspect", "--help")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -159,24 +155,24 @@ func TestImageInspect_HelpFlag(t *testing.T) {
 }
 
 func TestImageInspect_MissingArg(t *testing.T) {
-	_, err := execRootForImage("image", "inspect")
+	h := NewHandler()
+	_, err := execRootForImage(h, "image", "inspect")
 	if err == nil {
 		t.Fatal("expected error for missing IMAGE argument")
 	}
 }
 
 func TestImageInspect_Success(t *testing.T) {
-	orig := imageInspectFn
-	imageInspectFn = func(_ string, refStr string) (*maturin.InspectResult, error) {
+	h := NewHandler()
+	h.ImageInspectFn = func(_ string, refStr string) (*maturin.InspectResult, error) {
 		return &maturin.InspectResult{
 			Ref:     refStr,
 			ID:      "aabbccddeeff",
 			RepoTag: refStr,
 		}, nil
 	}
-	t.Cleanup(func() { imageInspectFn = orig; globalFlags = GlobalFlags{} })
 
-	out, err := execRootForImage("image", "inspect", "nginx:latest")
+	out, err := execRootForImage(h, "image", "inspect", "nginx:latest")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -186,13 +182,12 @@ func TestImageInspect_Success(t *testing.T) {
 }
 
 func TestImageInspect_Error(t *testing.T) {
-	orig := imageInspectFn
-	imageInspectFn = func(_ string, _ string) (*maturin.InspectResult, error) {
+	h := NewHandler()
+	h.ImageInspectFn = func(_ string, _ string) (*maturin.InspectResult, error) {
 		return nil, errors.New("image not found")
 	}
-	t.Cleanup(func() { imageInspectFn = orig; globalFlags = GlobalFlags{} })
 
-	_, err := execRootForImage("image", "inspect", "nginx:latest")
+	_, err := execRootForImage(h, "image", "inspect", "nginx:latest")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -201,7 +196,8 @@ func TestImageInspect_Error(t *testing.T) {
 // ── image history ─────────────────────────────────────────────────────────────
 
 func TestImageHistory_HelpFlag(t *testing.T) {
-	out, err := execRootForImage("image", "history", "--help")
+	h := NewHandler()
+	out, err := execRootForImage(h, "image", "history", "--help")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -211,26 +207,26 @@ func TestImageHistory_HelpFlag(t *testing.T) {
 }
 
 func TestImageHistory_MissingArg(t *testing.T) {
-	_, err := execRootForImage("image", "history")
+	h := NewHandler()
+	_, err := execRootForImage(h, "image", "history")
 	if err == nil {
 		t.Fatal("expected error for missing IMAGE argument")
 	}
 }
 
 func TestImageHistory_Table(t *testing.T) {
-	orig := imageHistoryFn
-	imageHistoryFn = func(_ string, _ string) ([]maturin.HistoryEntry, error) {
+	h := NewHandler()
+	h.ImageHistoryFn = func(_ string, _ string) ([]maturin.HistoryEntry, error) {
 		return []maturin.HistoryEntry{
 			{
-				Created:   time.Now().Add(-24 * time.Hour),
+				Created:   time.Now().UTC().Add(-24 * time.Hour),
 				CreatedBy: "/bin/sh -c apt-get install -y nginx",
 				Size:      5 * 1024 * 1024,
 			},
 		}, nil
 	}
-	t.Cleanup(func() { imageHistoryFn = orig; globalFlags = GlobalFlags{} })
 
-	out, err := execRootForImage("image", "history", "nginx:latest")
+	out, err := execRootForImage(h, "image", "history", "nginx:latest")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -243,13 +239,12 @@ func TestImageHistory_Table(t *testing.T) {
 }
 
 func TestImageHistory_JSON(t *testing.T) {
-	orig := imageHistoryFn
-	imageHistoryFn = func(_ string, _ string) ([]maturin.HistoryEntry, error) {
+	h := NewHandler()
+	h.ImageHistoryFn = func(_ string, _ string) ([]maturin.HistoryEntry, error) {
 		return []maturin.HistoryEntry{{CreatedBy: "test"}}, nil
 	}
-	t.Cleanup(func() { imageHistoryFn = orig; globalFlags = GlobalFlags{} })
 
-	out, err := execRootForImage("image", "history", "--format", "json", "nginx:latest")
+	out, err := execRootForImage(h, "image", "history", "--format", "json", "nginx:latest")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -259,15 +254,14 @@ func TestImageHistory_JSON(t *testing.T) {
 }
 
 func TestImageHistory_LongCreatedBy_Truncated(t *testing.T) {
-	orig := imageHistoryFn
-	imageHistoryFn = func(_ string, _ string) ([]maturin.HistoryEntry, error) {
+	h := NewHandler()
+	h.ImageHistoryFn = func(_ string, _ string) ([]maturin.HistoryEntry, error) {
 		return []maturin.HistoryEntry{
 			{CreatedBy: strings.Repeat("x", 80)},
 		}, nil
 	}
-	t.Cleanup(func() { imageHistoryFn = orig; globalFlags = GlobalFlags{} })
 
-	out, err := execRootForImage("image", "history", "nginx:latest")
+	out, err := execRootForImage(h, "image", "history", "nginx:latest")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -277,13 +271,12 @@ func TestImageHistory_LongCreatedBy_Truncated(t *testing.T) {
 }
 
 func TestImageHistory_Error(t *testing.T) {
-	orig := imageHistoryFn
-	imageHistoryFn = func(_ string, _ string) ([]maturin.HistoryEntry, error) {
+	h := NewHandler()
+	h.ImageHistoryFn = func(_ string, _ string) ([]maturin.HistoryEntry, error) {
 		return nil, errors.New("image not found")
 	}
-	t.Cleanup(func() { imageHistoryFn = orig; globalFlags = GlobalFlags{} })
 
-	_, err := execRootForImage("image", "history", "nginx:latest")
+	_, err := execRootForImage(h, "image", "history", "nginx:latest")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -292,7 +285,8 @@ func TestImageHistory_Error(t *testing.T) {
 // ── image rm ──────────────────────────────────────────────────────────────────
 
 func TestImageRm_HelpFlag(t *testing.T) {
-	out, err := execRootForImage("image", "rm", "--help")
+	h := NewHandler()
+	out, err := execRootForImage(h, "image", "rm", "--help")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -302,18 +296,18 @@ func TestImageRm_HelpFlag(t *testing.T) {
 }
 
 func TestImageRm_MissingArg(t *testing.T) {
-	_, err := execRootForImage("image", "rm")
+	h := NewHandler()
+	_, err := execRootForImage(h, "image", "rm")
 	if err == nil {
 		t.Fatal("expected error for missing IMAGE argument")
 	}
 }
 
 func TestImageRm_Success(t *testing.T) {
-	orig := imageRmFn
-	imageRmFn = func(_ context.Context, _, _ string) error { return nil }
-	t.Cleanup(func() { imageRmFn = orig; globalFlags = GlobalFlags{} })
+	h := NewHandler()
+	h.ImageRmFn = func(_ context.Context, _, _ string) error { return nil }
 
-	out, err := execRootForImage("image", "rm", "nginx:latest")
+	out, err := execRootForImage(h, "image", "rm", "nginx:latest")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -323,11 +317,10 @@ func TestImageRm_Success(t *testing.T) {
 }
 
 func TestImageRm_Quiet(t *testing.T) {
-	orig := imageRmFn
-	imageRmFn = func(_ context.Context, _, _ string) error { return nil }
-	t.Cleanup(func() { imageRmFn = orig; globalFlags = GlobalFlags{} })
+	h := NewHandler()
+	h.ImageRmFn = func(_ context.Context, _, _ string) error { return nil }
 
-	out, err := execRootForImage("--quiet", "image", "rm", "nginx:latest")
+	out, err := execRootForImage(h, "--quiet", "image", "rm", "nginx:latest")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -337,15 +330,14 @@ func TestImageRm_Quiet(t *testing.T) {
 }
 
 func TestImageRm_MultipleRefs(t *testing.T) {
-	orig := imageRmFn
+	h := NewHandler()
 	var removed []string
-	imageRmFn = func(_ context.Context, _, ref string) error {
+	h.ImageRmFn = func(_ context.Context, _, ref string) error {
 		removed = append(removed, ref)
 		return nil
 	}
-	t.Cleanup(func() { imageRmFn = orig; globalFlags = GlobalFlags{} })
 
-	_, err := execRootForImage("image", "rm", "nginx:latest", "nginx:1.25")
+	_, err := execRootForImage(h, "image", "rm", "nginx:latest", "nginx:1.25")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -355,27 +347,25 @@ func TestImageRm_MultipleRefs(t *testing.T) {
 }
 
 func TestImageRm_PartialError(t *testing.T) {
-	orig := imageRmFn
-	imageRmFn = func(_ context.Context, _, ref string) error {
+	h := NewHandler()
+	h.ImageRmFn = func(_ context.Context, _, ref string) error {
 		if ref == "bad:tag" {
 			return errors.New("not found")
 		}
 		return nil
 	}
-	t.Cleanup(func() { imageRmFn = orig; globalFlags = GlobalFlags{} })
 
-	_, err := execRootForImage("image", "rm", "nginx:latest", "bad:tag")
+	_, err := execRootForImage(h, "image", "rm", "nginx:latest", "bad:tag")
 	if err == nil {
 		t.Fatal("expected error from partial failure, got nil")
 	}
 }
 
 func TestImageRm_ForceFlag(t *testing.T) {
-	orig := imageRmFn
-	imageRmFn = func(_ context.Context, _, _ string) error { return nil }
-	t.Cleanup(func() { imageRmFn = orig; globalFlags = GlobalFlags{} })
+	h := NewHandler()
+	h.ImageRmFn = func(_ context.Context, _, _ string) error { return nil }
 
-	_, err := execRootForImage("image", "rm", "--force", "nginx:latest")
+	_, err := execRootForImage(h, "image", "rm", "--force", "nginx:latest")
 	if err != nil {
 		t.Fatalf("unexpected error with --force: %v", err)
 	}
@@ -392,7 +382,7 @@ func TestFormatAge_Zero(t *testing.T) {
 
 func TestFormatAge_LessThanMinute(t *testing.T) {
 	t.Parallel()
-	got := formatAge(time.Now().Add(-5 * time.Second))
+	got := formatAge(time.Now().UTC().Add(-5 * time.Second))
 	if !strings.Contains(got, "second") {
 		t.Errorf("formatAge(5s ago) = %q, expected 'second'", got)
 	}
@@ -400,7 +390,7 @@ func TestFormatAge_LessThanMinute(t *testing.T) {
 
 func TestFormatAge_Minutes(t *testing.T) {
 	t.Parallel()
-	got := formatAge(time.Now().Add(-30 * time.Minute))
+	got := formatAge(time.Now().UTC().Add(-30 * time.Minute))
 	if !strings.Contains(got, "minutes") {
 		t.Errorf("formatAge(30m ago) = %q, expected 'minutes'", got)
 	}
@@ -408,7 +398,7 @@ func TestFormatAge_Minutes(t *testing.T) {
 
 func TestFormatAge_Hours(t *testing.T) {
 	t.Parallel()
-	got := formatAge(time.Now().Add(-5 * time.Hour))
+	got := formatAge(time.Now().UTC().Add(-5 * time.Hour))
 	if !strings.Contains(got, "hours") {
 		t.Errorf("formatAge(5h ago) = %q, expected 'hours'", got)
 	}
@@ -416,7 +406,7 @@ func TestFormatAge_Hours(t *testing.T) {
 
 func TestFormatAge_Days(t *testing.T) {
 	t.Parallel()
-	got := formatAge(time.Now().Add(-48 * time.Hour))
+	got := formatAge(time.Now().UTC().Add(-48 * time.Hour))
 	if !strings.Contains(got, "days") {
 		t.Errorf("formatAge(48h ago) = %q, expected 'days'", got)
 	}

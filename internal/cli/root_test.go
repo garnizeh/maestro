@@ -14,7 +14,8 @@ import (
 
 // execRoot runs the root cobra command with the given args and captures output.
 func execRoot(args ...string) (string, error) {
-	root := cli.NewRootCommand()
+	h := cli.NewHandler()
+	root := cli.NewRootCommand(h)
 	buf := new(bytes.Buffer)
 	root.SetOut(buf)
 	root.SetErr(buf)
@@ -130,17 +131,15 @@ func TestNetworkCmd_Help(t *testing.T) {
 
 func TestStubCmdsReturnNotImplemented(t *testing.T) {
 	cmds := [][]string{
-		{"run"},
 		{"exec"},
-		{"ps"},
 		{"push"},
 		{"container", "create"},
 		{"network", "create"},
 		{"volume", "create"},
-		{"system", "info"},
 		{"artifact", "push"},
 		{"service", "generate"},
 	}
+
 	for _, args := range cmds {
 		_, err := execRoot(args...)
 		if err == nil {
@@ -230,7 +229,8 @@ func TestConfigEdit_LaunchesEditor(t *testing.T) {
 // ── Completions ──────────────────────────────────────────────────────────────
 
 func TestGenerateCompletions_Bash(t *testing.T) {
-	root := cli.NewRootCommand()
+	h := cli.NewHandler()
+	root := cli.NewRootCommand(h)
 	buf := new(bytes.Buffer)
 	root.SetOut(buf)
 	root.SetErr(buf)
@@ -244,7 +244,8 @@ func TestGenerateCompletions_Bash(t *testing.T) {
 }
 
 func TestGenerateCompletions_Zsh(t *testing.T) {
-	root := cli.NewRootCommand()
+	h := cli.NewHandler()
+	root := cli.NewRootCommand(h)
 	buf := new(bytes.Buffer)
 	root.SetOut(buf)
 	root.SetErr(new(bytes.Buffer))
@@ -258,7 +259,8 @@ func TestGenerateCompletions_Zsh(t *testing.T) {
 }
 
 func TestGenerateCompletions_Fish(t *testing.T) {
-	root := cli.NewRootCommand()
+	h := cli.NewHandler()
+	root := cli.NewRootCommand(h)
 	buf := new(bytes.Buffer)
 	root.SetOut(buf)
 	root.SetErr(new(bytes.Buffer))
@@ -280,7 +282,8 @@ func TestGenerateCompletions_UnknownShell(t *testing.T) {
 }
 
 func TestGenerateCompletions_PowerShell(t *testing.T) {
-	root := cli.NewRootCommand()
+	h := cli.NewHandler()
+	root := cli.NewRootCommand(h)
 	buf := new(bytes.Buffer)
 	root.SetOut(buf)
 	root.SetErr(new(bytes.Buffer))

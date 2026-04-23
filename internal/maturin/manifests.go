@@ -1,13 +1,13 @@
 package maturin
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 
 	"github.com/opencontainers/go-digest"
+	"github.com/rs/zerolog/log"
 )
 
 // manifestDir returns the symlink directory for a registry/repository pair.
@@ -23,31 +23,41 @@ func (s *Store) tagLinkPath(registry, repository, tag string) string {
 // PutManifest stores a manifest blob in the CAS and creates (or atomically
 // replaces) a tag symlink at maturin/manifests/<registry>/<repository>/<tag>.
 // The symlink target is the digest string (e.g., "sha256:<hex>").
-func (s *Store) PutManifest(registry, repository, tag string, dgst digest.Digest, r io.Reader) error {
+func (s *Store) PutManifest(
+	registry, repository, tag string,
+	dgst digest.Digest,
+	r io.Reader,
+) error {
 	if putErr := s.Put(dgst, r); putErr != nil {
 		return putErr
 	}
 
 	dir := s.manifestDir(registry, repository)
-	if mkdirErr := os.MkdirAll(dir, 0o700); mkdirErr != nil {
+	if mkdirErr := s.fs.MkdirAll(dir, dirPerm); mkdirErr != nil {
 		return fmt.Errorf("create manifest dir: %w", mkdirErr)
 	}
 
-	return atomicSymlink(s.tagLinkPath(registry, repository, tag), string(dgst))
+	return s.atomicSymlink(s.tagLinkPath(registry, repository, tag), string(dgst))
 }
 
 // atomicSymlink creates a symlink at path with the given target, atomically
 // replacing any existing entry via a temporary name and [os.Rename].
-func atomicSymlink(path, target string) error {
+func (s *Store) atomicSymlink(path, target string) error {
 	tmp := path + ".tmp"
-	_ = os.Remove(tmp) // clean up any stale temp from a prior crash
+	if innerErr := s.fs.Remove(tmp); innerErr != nil && !os.IsNotExist(innerErr) {
+		log.Debug().Err(innerErr).Str("path", tmp).
+			Msg("maturin: failed to remove stale manifest temp file before symlinking")
+	}
 
-	if symlinkErr := os.Symlink(target, tmp); symlinkErr != nil {
+	if symlinkErr := s.fs.Symlink(target, tmp); symlinkErr != nil {
 		return fmt.Errorf("create temp symlink: %w", symlinkErr)
 	}
 
-	if renameErr := os.Rename(tmp, path); renameErr != nil {
-		_ = os.Remove(tmp)
+	if renameErr := s.fs.Rename(tmp, path); renameErr != nil {
+		if innerErr := s.fs.Remove(tmp); innerErr != nil && !os.IsNotExist(innerErr) {
+			log.Debug().Err(innerErr).Str("path", tmp).
+				Msg("maturin: failed to remove stale manifest temp file after rename failure")
+		}
 		return fmt.Errorf("atomically install symlink: %w", renameErr)
 	}
 
@@ -59,17 +69,20 @@ func atomicSymlink(path, target string) error {
 func (s *Store) ResolveTag(registry, repository, tag string) (digest.Digest, error) {
 	linkPath := s.tagLinkPath(registry, repository, tag)
 
-	target, readErr := os.Readlink(linkPath)
+	target, readErr := s.fs.Readlink(linkPath)
 	if readErr != nil {
-		if errors.Is(readErr, os.ErrNotExist) {
-			return "", fmt.Errorf("%w: %s/%s:%s", ErrTagNotFound, registry, repository, tag)
+		if os.IsNotExist(readErr) {
+			return "", fmt.Errorf("%w: %s/%s:%s",
+				ErrTagNotFound, registry, repository, tag)
 		}
-		return "", fmt.Errorf("resolve tag %s/%s:%s: %w", registry, repository, tag, readErr)
+		return "", fmt.Errorf("resolve tag %s/%s:%s: %w",
+			registry, repository, tag, readErr)
 	}
 
 	dgst := digest.Digest(target)
 	if validateErr := dgst.Validate(); validateErr != nil {
-		return "", fmt.Errorf("invalid digest in tag symlink %s/%s:%s: %w", registry, repository, tag, validateErr)
+		return "", fmt.Errorf("invalid digest in tag symlink %s/%s:%s: %w",
+			registry, repository, tag, validateErr)
 	}
 
 	return dgst, nil

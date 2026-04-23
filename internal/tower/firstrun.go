@@ -3,6 +3,8 @@ package tower
 import (
 	"fmt"
 	"os"
+
+	"github.com/rs/zerolog/log"
 )
 
 // FirstRun checks for a missing config file and missing state directories,
@@ -15,12 +17,17 @@ func FirstRun(configOverride string, _ string) (bool, error) {
 	}
 
 	if created {
-		fmt.Fprintf(os.Stderr,
+		log.Debug().Str("path", path).Msg("tower: first run detected, created default config")
+		if _, printErr := fmt.Fprintf(os.Stderr,
 			"\nWelcome to Maestro!\n\n"+
 				"A default configuration file has been created at:\n  %s\n\n"+
 				"Edit it with: maestro config edit\n\n",
 			path,
-		)
+		); printErr != nil {
+			log.Debug().Err(printErr).Msg("tower: failed to write welcome message")
+		}
+	} else {
+		log.Debug().Str("path", path).Msg("tower: using existing config")
 	}
 
 	return created, nil

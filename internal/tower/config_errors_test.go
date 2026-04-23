@@ -29,7 +29,11 @@ func TestLoadConfig_UnreadableFile(t *testing.T) {
 	if err := os.WriteFile(cfgPath, []byte("[runtime]\ndefault = 'runc'\n"), 0o000); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(cfgPath, 0o600) })
+	t.Cleanup(func() {
+		if err := os.Chmod(cfgPath, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	_, err := tower.LoadConfig(cfgPath)
 	if err == nil {
@@ -99,7 +103,11 @@ func TestEnsureDefault_MkdirError(t *testing.T) {
 	if err := os.Chmod(parent, 0o500); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(parent, 0o700) })
+	t.Cleanup(func() {
+		if err := os.Chmod(parent, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	cfgPath := filepath.Join(parent, "subdir", "katet.toml")
 	_, _, err := tower.EnsureDefault(cfgPath)
@@ -121,7 +129,11 @@ func TestEnsureDefault_WriteError(t *testing.T) {
 	if err := os.Chmod(cfgDir, 0o500); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(cfgDir, 0o700) })
+	t.Cleanup(func() {
+		if err := os.Chmod(cfgDir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	cfgPath := filepath.Join(cfgDir, "katet.toml")
 	_, _, err := tower.EnsureDefault(cfgPath)

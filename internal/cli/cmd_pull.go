@@ -6,27 +6,22 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
 	"github.com/rodrigo-baliza/maestro/internal/maturin"
 	"github.com/rodrigo-baliza/maestro/internal/shardik"
 )
 
-// pullDrawFn is the dependency injection point for the pull operation.
-// Overridden in tests to avoid real registry and filesystem calls.
-//
-//nolint:gochecknoglobals // dependency injection point: overridden in tests
-var pullDrawFn = defaultPullDraw
-
-func newPullCmd() *cobra.Command {
+func newPullCmd(h *Handler) *cobra.Command {
 	var platform string
 
 	cmd := &cobra.Command{
 		Use:   "pull [OPTIONS] IMAGE[:TAG|@DIGEST]",
-		Short: "Pull an image from a registry (shortcut for 'image pull')",
+		Short: "Pull an image from a registry",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runPull(cmd, args[0], platform)
+			return runPull(h, cmd, args[0], platform)
 		},
 	}
 	cmd.Flags().StringVar(&platform, "platform", "",
@@ -34,12 +29,19 @@ func newPullCmd() *cobra.Command {
 	return cmd
 }
 
-func runPull(cmd *cobra.Command, refStr, platform string) error {
-	root := globalFlags.Root
+func runPull(h *Handler, cmd *cobra.Command, refStr, platform string) error {
+	log.Debug().
+		Str("ref", refStr).
+		Str("platform", platform).
+		Msg("cli: image pull")
+	root := h.StoreRoot()
 	if root == "" {
 		home, homeErr := os.UserHomeDir()
 		if homeErr != nil {
-			return fmt.Errorf("determine home directory: %w", homeErr) //coverage:ignore requires system without $HOME
+			return fmt.Errorf(
+				"determine home directory: %w",
+				homeErr,
+			) //coverage:ignore requires system without $HOME
 		}
 		root = filepath.Join(home, ".local", "share", "maestro")
 	}
@@ -47,24 +49,26 @@ func runPull(cmd *cobra.Command, refStr, platform string) error {
 	opts := maturin.DrawOptions{Platform: platform}
 
 	var prog *pullProgress
-	if !globalFlags.Quiet {
+	if !h.Quiet {
 		prog = newPullProgress(cmd.OutOrStdout())
 		opts.OnLayerDone = prog.OnLayerDone
 	}
 
-	if drawErr := pullDrawFn(cmd.Context(), root, refStr, opts); drawErr != nil {
+	if drawErr := h.PullDrawFn(cmd.Context(), root, refStr, opts); drawErr != nil {
 		return fmt.Errorf("pull %s: %w", refStr, drawErr)
 	}
 
-	if !globalFlags.Quiet {
+	if !h.Quiet {
 		prog.Summary(refStr)
 	}
 	return nil
 }
 
 func defaultPullDraw(ctx context.Context, root, refStr string, opts maturin.DrawOptions) error {
-	store := maturin.New(root) //coverage:ignore wiring-only; exercised in integration tests, not unit tests
-	client := shardik.New()    //coverage:ignore wiring-only; exercised in integration tests, not unit tests
+	store := maturin.New(
+		root,
+	) //coverage:ignore wiring-only; exercised in integration tests, not unit tests
+	client := shardik.New() //coverage:ignore wiring-only; exercised in integration tests, not unit tests
 	//coverage:ignore wiring-only; exercised in integration tests, not unit tests
 	return store.Draw(ctx, client, refStr, opts)
 }

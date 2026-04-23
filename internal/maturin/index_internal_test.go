@@ -17,9 +17,12 @@ func TestUnlockIndex_InvalidFd(t *testing.T) {
 	}
 	// Close the file so f.Fd() returns the invalid-fd sentinel (maxuint → -1 as int).
 	// syscall.Flock(-1, LOCK_UN) returns EBADF, covering the error branch.
-	_ = f.Close()
+	if closeErr := f.Close(); closeErr != nil {
+		t.Fatalf("unlockIndex_InvalidFd Close: %v", closeErr)
+	}
 
-	if unlockErr := unlockIndex(f); unlockErr == nil {
+	s := New(t.TempDir())
+	if unlockErr := s.unlockIndex(f); unlockErr == nil {
 		t.Fatal("expected EBADF error from Flock on closed file, got nil")
 	}
 }
@@ -61,11 +64,14 @@ func TestUnlockIndex_ValidFd(t *testing.T) {
 		t.Fatal(err)
 	}
 	if flockErr := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); flockErr != nil {
-		_ = f.Close()
+		if closeErr := f.Close(); closeErr != nil {
+			t.Fatalf("unlockIndex_ValidFd Close: %v", closeErr)
+		}
 		t.Fatal(flockErr)
 	}
 
-	if unlockErr := unlockIndex(f); unlockErr != nil {
+	s := New(root)
+	if unlockErr := s.unlockIndex(f); unlockErr != nil {
 		t.Fatalf("unlockIndex on valid fd: %v", unlockErr)
 	}
 }

@@ -29,7 +29,14 @@ func TestStore_PutManifest_Success(t *testing.T) {
 	}
 
 	// Symlink must resolve to the digest string.
-	linkPath := filepath.Join(s.Root(), "maturin", "manifests", "docker.io", "library/nginx", "latest")
+	linkPath := filepath.Join(
+		s.Root(),
+		"maturin",
+		"manifests",
+		"docker.io",
+		"library/nginx",
+		"latest",
+	)
 	target, err := os.Readlink(linkPath)
 	if err != nil {
 		t.Fatalf("Readlink: %v", err)
@@ -148,7 +155,13 @@ func TestStore_PutManifest_DigestMismatch(t *testing.T) {
 	content := []byte("real content")
 	wrongDigest := mustDigest([]byte("different"))
 
-	err := s.PutManifest("docker.io", "library/nginx", "latest", wrongDigest, bytes.NewReader(content))
+	err := s.PutManifest(
+		"docker.io",
+		"library/nginx",
+		"latest",
+		wrongDigest,
+		bytes.NewReader(content),
+	)
 	if !errors.Is(err, maturin.ErrDigestMismatch) {
 		t.Fatalf("expected ErrDigestMismatch, got %v", err)
 	}
@@ -162,7 +175,13 @@ func TestStore_PutManifest_DigestMismatch(t *testing.T) {
 func TestStore_PutManifest_InvalidDigest(t *testing.T) {
 	t.Parallel()
 	s := newTestStore(t)
-	err := s.PutManifest("docker.io", "library/nginx", "latest", digest.Digest("bad"), bytes.NewReader([]byte("x")))
+	err := s.PutManifest(
+		"docker.io",
+		"library/nginx",
+		"latest",
+		digest.Digest("bad"),
+		bytes.NewReader([]byte("x")),
+	)
 	if err == nil {
 		t.Fatal("expected error for invalid digest")
 	}
@@ -203,7 +222,14 @@ func TestStore_AtomicSymlink_RenameError(t *testing.T) {
 	dgst := mustDigest(content)
 
 	// Pre-create a DIRECTORY at the tag symlink path so os.Rename(tmp, dir) fails.
-	tagDir := filepath.Join(s.Root(), "maturin", "manifests", "docker.io", "library/nginx", "latest")
+	tagDir := filepath.Join(
+		s.Root(),
+		"maturin",
+		"manifests",
+		"docker.io",
+		"library/nginx",
+		"latest",
+	)
 	if err := os.MkdirAll(tagDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +258,11 @@ func TestStore_AtomicSymlink_SymlinkError(t *testing.T) {
 	if err := os.Chmod(tagParent, 0o555); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(tagParent, 0o700) })
+	t.Cleanup(func() {
+		if err := os.Chmod(tagParent, 0o700); err != nil {
+			t.Fatalf("failed to restore permissions: %v", err)
+		}
+	})
 
 	err := s.PutManifest("docker.io", "library/nginx", "latest", dgst, bytes.NewReader(content))
 	if err == nil {

@@ -12,6 +12,7 @@ import (
 
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -32,15 +33,24 @@ func (s *Store) indexLockPath() string {
 // lockIndex acquires an exclusive [syscall.LOCK_EX] flock on the index lock
 // file, waiting up to [indexLockTimeout] or until ctx is cancelled.
 func (s *Store) lockIndex(ctx context.Context) (*os.File, error) {
-	if mkdirErr := os.MkdirAll(filepath.Join(s.root, "maturin"), 0o700); mkdirErr != nil {
+	if mkdirErr := s.fs.MkdirAll(filepath.Join(s.root, "maturin"), dirPerm); mkdirErr != nil {
 		return nil, fmt.Errorf("create maturin dir: %w", mkdirErr)
 	}
 
-	f, openErr := os.OpenFile(s.indexLockPath(), os.O_CREATE|os.O_RDWR, 0o600)
+	f, openErr := s.fs.OpenFile(s.indexLockPath(), os.O_CREATE|os.O_RDWR, filePerm)
 	if openErr != nil {
 		return nil, fmt.Errorf("open index lock: %w", openErr)
 	}
 
+	if pollErr := s.pollIndexLock(ctx, f); pollErr != nil {
+		return nil, pollErr
+	}
+
+	return f, nil
+}
+
+// pollIndexLock performs the non-blocking flock loop with retries.
+func (s *Store) pollIndexLock(ctx context.Context, f *os.File) error {
 	deadline, hasDeadline := ctx.Deadline()
 	if !hasDeadline {
 		deadline = time.Now().Add(indexLockTimeout)
@@ -48,33 +58,49 @@ func (s *Store) lockIndex(ctx context.Context) (*os.File, error) {
 
 	for {
 		//nolint:gosec // G115: Flock requires int; fd fits in int on all supported 64-bit platforms
-		lockErr := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		lockErr := s.fs.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
 		if lockErr == nil {
-			return f, nil
+			return nil
 		}
 		if !errors.Is(lockErr, syscall.EWOULDBLOCK) {
-			_ = f.Close()
+			if errClose := f.Close(); errClose != nil {
+				log.Debug().
+					Err(errClose).
+					Msg("maturin: failed to close index lock file after flock error")
+			}
 			//coverage:ignore non-EWOULDBLOCK requires invalid fd, unreachable after successful OpenFile
-			return nil, fmt.Errorf("flock index: %w", lockErr)
+			return fmt.Errorf("flock index: %w", lockErr)
 		}
 		if time.Now().After(deadline) {
-			_ = f.Close()
-			return nil, errors.New("timeout waiting for index lock")
+			if errClose := f.Close(); errClose != nil {
+				log.Debug().
+					Err(errClose).
+					Msg("maturin: failed to close index lock file after timeout")
+			}
+			return errors.New("timeout waiting for index lock")
 		}
 		select {
 		case <-ctx.Done():
-			_ = f.Close()
-			return nil, ctx.Err()
+			if errClose := f.Close(); errClose != nil {
+				log.Debug().
+					Err(errClose).
+					Msg("maturin: failed to close index lock file after context cancellation")
+			}
+			return ctx.Err()
 		case <-time.After(indexLockPollInterval):
 		}
 	}
 }
 
 // unlockIndex releases the exclusive lock held by f and closes the file.
-func unlockIndex(f *os.File) error {
+func (s *Store) unlockIndex(f *os.File) error {
 	//nolint:gosec // G115: Flock requires int; fd fits in int on all supported 64-bit platforms
-	if unlockErr := syscall.Flock(int(f.Fd()), syscall.LOCK_UN); unlockErr != nil {
-		_ = f.Close()
+	if unlockErr := s.fs.Flock(int(f.Fd()), syscall.LOCK_UN); unlockErr != nil {
+		if errClose := f.Close(); errClose != nil {
+			log.Debug().
+				Err(errClose).
+				Msg("maturin: failed to close index lock file after unlock error")
+		}
 		//coverage:ignore Flock(LOCK_UN) on a valid fd never fails in normal operation
 		return fmt.Errorf("unlock index: %w", unlockErr)
 	}
@@ -90,7 +116,7 @@ func (s *Store) withIndexLock(ctx context.Context, fn func() error) error {
 		return lockErr
 	}
 	fnErr := fn()
-	unlockErr := unlockIndex(lockFile)
+	unlockErr := s.unlockIndex(lockFile)
 	if fnErr != nil {
 		return fnErr
 	}
@@ -100,7 +126,7 @@ func (s *Store) withIndexLock(ctx context.Context, fn func() error) error {
 // readIndex reads and parses index.json. Returns an empty valid index if the
 // file does not yet exist.
 func (s *Store) readIndex() (v1.Index, error) {
-	data, readErr := os.ReadFile(s.indexPath())
+	data, readErr := s.fs.ReadFile(s.indexPath())
 	if readErr != nil {
 		if os.IsNotExist(readErr) {
 			idx := v1.Index{Manifests: []v1.Descriptor{}}
@@ -129,11 +155,16 @@ func (s *Store) writeIndex(idx v1.Index) error {
 	}
 
 	tmp := s.indexPath() + ".tmp"
-	if writeErr := os.WriteFile(tmp, data, 0o600); writeErr != nil {
+	if writeErr := s.fs.WriteFile(tmp, data, filePerm); writeErr != nil {
 		return fmt.Errorf("write index temp: %w", writeErr)
 	}
-	if renameErr := os.Rename(tmp, s.indexPath()); renameErr != nil {
-		_ = os.Remove(tmp)
+	if renameErr := s.fs.Rename(tmp, s.indexPath()); renameErr != nil {
+		if errRem := s.fs.Remove(tmp); errRem != nil {
+			log.Debug().
+				Err(errRem).
+				Str("path", tmp).
+				Msg("maturin: failed to remove stale index temp file")
+		}
 		return fmt.Errorf("commit index: %w", renameErr)
 	}
 	return nil

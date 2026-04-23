@@ -4,7 +4,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newGenerateCmd() *cobra.Command {
+func newGenerateCmd(_ *Handler) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "generate",
 		Short: "Generate auxiliary files (completions, man pages)",

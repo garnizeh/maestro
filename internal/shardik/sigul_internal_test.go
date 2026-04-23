@@ -19,11 +19,11 @@ func (r testResource) String() string      { return r.registry }
 // ── authFilePath ──────────────────────────────────────────────────────────────
 
 func TestAuthFilePath_HomeDirError(t *testing.T) {
-	orig := userHomeDirFn
-	defer func() { userHomeDirFn = orig }()
-	userHomeDirFn = func() (string, error) { return "", errors.New("no home directory") }
+	cfg := SigulConfig{
+		HomeDir: func() (string, error) { return "", errors.New("no home directory") },
+	}
 
-	_, err := authFilePath("")
+	_, err := authFilePath(cfg)
 	if err == nil {
 		t.Error("expected error when home directory lookup fails")
 	}
@@ -32,12 +32,12 @@ func TestAuthFilePath_HomeDirError(t *testing.T) {
 // ── resolveFromAuthFile ───────────────────────────────────────────────────────
 
 func TestResolveFromAuthFile_PathError(t *testing.T) {
-	// Trigger pathErr by making userHomeDirFn fail when override is empty.
-	orig := userHomeDirFn
-	defer func() { userHomeDirFn = orig }()
-	userHomeDirFn = func() (string, error) { return "", errors.New("no home") }
+	// Trigger pathErr by making HomeDir fail when AuthFilePath is empty.
+	cfg := SigulConfig{
+		HomeDir: func() (string, error) { return "", errors.New("no home") },
+	}
 
-	_, err := resolveFromAuthFile("", "docker.io")
+	_, err := resolveFromAuthFile(cfg, "docker.io")
 	if err == nil {
 		t.Error("expected error when home directory lookup fails")
 	}
@@ -50,7 +50,8 @@ func TestResolveFromAuthFile_JSONError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := resolveFromAuthFile(authPath, "docker.io")
+	cfg := SigulConfig{AuthFilePath: authPath}
+	_, err := resolveFromAuthFile(cfg, "docker.io")
 	if err == nil {
 		t.Error("expected error for invalid JSON")
 	}
@@ -65,12 +66,16 @@ func TestResolveFromAuthFile_TokenEntry(t *testing.T) {
 			"ghcr.io": {Token: "bearer-token-xyz"},
 		},
 	}
-	data, _ := json.Marshal(af)
-	if err := os.WriteFile(authPath, data, 0o600); err != nil {
-		t.Fatal(err)
+	data, err := json.Marshal(af)
+	if err != nil {
+		t.Fatalf("failed to marshal auth file: %v", err)
+	}
+	if writeErr := os.WriteFile(authPath, data, 0o600); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 
-	auth, err := resolveFromAuthFile(authPath, "ghcr.io")
+	cfg := SigulConfig{AuthFilePath: authPath}
+	auth, err := resolveFromAuthFile(cfg, "ghcr.io")
 	if err != nil {
 		t.Fatalf("resolveFromAuthFile: %v", err)
 	}
@@ -88,13 +93,17 @@ func TestResolveFromAuthFile_PermissionWarning(t *testing.T) {
 			"docker.io": {Username: "u", Password: "p"},
 		},
 	}
-	data, _ := json.Marshal(af)
-	if err := os.WriteFile(authPath, data, 0o644); err != nil {
-		t.Fatal(err)
+	data, err := json.Marshal(af)
+	if err != nil {
+		t.Fatalf("failed to marshal auth file: %v", err)
+	}
+	if writeErr := os.WriteFile(authPath, data, 0o644); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 
+	cfg := SigulConfig{AuthFilePath: authPath}
 	// Should resolve successfully despite the warning written to stderr.
-	auth, err := resolveFromAuthFile(authPath, "docker.io")
+	auth, err := resolveFromAuthFile(cfg, "docker.io")
 	if err != nil {
 		t.Fatalf("resolveFromAuthFile with wide perms: %v", err)
 	}
@@ -117,16 +126,19 @@ func TestSigulResolve_DockerKeychainFallback(t *testing.T) {
 			"test-docker.io": map[string]string{"username": "u", "password": "p"},
 		},
 	}
-	cfgData, _ := json.Marshal(dockerConfig)
-	if err := os.WriteFile(filepath.Join(configDir, "config.json"), cfgData, 0o600); err != nil {
-		t.Fatal(err)
+	cfgData, err := json.Marshal(dockerConfig)
+	if err != nil {
+		t.Fatalf("failed to marshal docker config: %v", err)
+	}
+	if writeErr := os.WriteFile(filepath.Join(configDir, "config.json"), cfgData, 0o600); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 	t.Setenv("DOCKER_CONFIG", configDir)
 
 	// Maestro auth.json has no entry for test-docker.io.
 	authPath := filepath.Join(dir, "auth.json")
-	if err := os.WriteFile(authPath, []byte(`{"auths":{}}`), 0o600); err != nil {
-		t.Fatal(err)
+	if writeErr := os.WriteFile(authPath, []byte(`{"auths":{}}`), 0o600); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 
 	kc := &sigulKeychain{cfg: SigulConfig{AuthFilePath: authPath}}
@@ -174,9 +186,12 @@ func TestResolve_AuthFileMatchReturnsCredential(t *testing.T) {
 			"registry.example.com": {Username: "u", Password: "p"},
 		},
 	}
-	data, _ := json.Marshal(af)
-	if err := os.WriteFile(authPath, data, 0o600); err != nil {
-		t.Fatal(err)
+	data, err := json.Marshal(af)
+	if err != nil {
+		t.Fatalf("failed to marshal auth file: %v", err)
+	}
+	if writeErr := os.WriteFile(authPath, data, 0o600); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 
 	kc := &sigulKeychain{cfg: SigulConfig{AuthFilePath: authPath}}
@@ -192,11 +207,11 @@ func TestResolve_AuthFileMatchReturnsCredential(t *testing.T) {
 // ── SaveCredentials / RemoveCredentials edge cases ────────────────────────────
 
 func TestSaveCredentials_AuthFilePathError(t *testing.T) {
-	orig := userHomeDirFn
-	defer func() { userHomeDirFn = orig }()
-	userHomeDirFn = func() (string, error) { return "", errors.New("no home") }
+	cfg := SigulConfig{
+		HomeDir: func() (string, error) { return "", errors.New("no home") },
+	}
 
-	if err := SaveCredentials("docker.io", "u", "p", ""); err == nil {
+	if err := SaveCredentials("docker.io", "u", "p", cfg); err == nil {
 		t.Error("expected error when home dir lookup fails")
 	}
 }
@@ -207,10 +222,15 @@ func TestSaveCredentials_MkdirError(t *testing.T) {
 	if err := os.Chmod(dir, 0o555); err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = os.Chmod(dir, 0o755) }()
+	defer func() {
+		if err := os.Chmod(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}()
 
 	authPath := filepath.Join(dir, "subdir", "auth.json")
-	if err := SaveCredentials("docker.io", "u", "p", authPath); err == nil {
+	cfg := SigulConfig{AuthFilePath: authPath}
+	if err := SaveCredentials("docker.io", "u", "p", cfg); err == nil {
 		t.Error("expected error when parent directory is not writable")
 	}
 }
@@ -223,17 +243,18 @@ func TestSaveCredentials_WriteError(t *testing.T) {
 	if err := os.Mkdir(authPath, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := SaveCredentials("docker.io", "u", "p", authPath); err == nil {
+	cfg := SigulConfig{AuthFilePath: authPath}
+	if err := SaveCredentials("docker.io", "u", "p", cfg); err == nil {
 		t.Error("expected error when auth path is a directory")
 	}
 }
 
 func TestRemoveCredentials_AuthFilePathError(t *testing.T) {
-	orig := userHomeDirFn
-	defer func() { userHomeDirFn = orig }()
-	userHomeDirFn = func() (string, error) { return "", errors.New("no home") }
+	cfg := SigulConfig{
+		HomeDir: func() (string, error) { return "", errors.New("no home") },
+	}
 
-	if err := RemoveCredentials("docker.io", ""); err == nil {
+	if err := RemoveCredentials("docker.io", cfg); err == nil {
 		t.Error("expected error when home dir lookup fails")
 	}
 }
@@ -246,7 +267,8 @@ func TestRemoveCredentials_ReadError(t *testing.T) {
 	if err := os.Mkdir(authPath, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := RemoveCredentials("docker.io", authPath); err == nil {
+	cfg := SigulConfig{AuthFilePath: authPath}
+	if err := RemoveCredentials("docker.io", cfg); err == nil {
 		t.Error("expected error when auth path is a directory")
 	}
 }
@@ -257,11 +279,15 @@ func TestRemoveCredentials_WriteError(t *testing.T) {
 
 	// Write valid JSON, then make file read-only so WriteFile fails.
 	af := authFile{Auths: map[string]authEntry{"docker.io": {Username: "u", Password: "p"}}}
-	data, _ := json.Marshal(af)
-	if err := os.WriteFile(authPath, data, 0o400); err != nil {
-		t.Fatal(err)
+	data, err := json.Marshal(af)
+	if err != nil {
+		t.Fatalf("failed to marshal auth file: %v", err)
 	}
-	if err := RemoveCredentials("docker.io", authPath); err == nil {
+	if writeErr := os.WriteFile(authPath, data, 0o400); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	cfg := SigulConfig{AuthFilePath: authPath}
+	if remErr := RemoveCredentials("docker.io", cfg); remErr == nil {
 		t.Error("expected error when auth file is read-only")
 	}
 }

@@ -11,8 +11,10 @@ import (
 func TestConfigPath_Default(t *testing.T) {
 	// Unset XDG so we get the HOME-based default.
 	t.Setenv("XDG_CONFIG_HOME", "")
-	home, _ := os.UserHomeDir()
-
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("UserHomeDir: %v", err)
+	}
 	path, err := tower.ConfigPath("")
 	if err != nil {
 		t.Fatalf("ConfigPath: %v", err)
@@ -52,6 +54,10 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
+
+	// We expect defaults as defined in tower/config.go:defaults()
+	// Since we can't easily reproduce the exact paths (HomeDir based),
+	// we compare the key fields.
 	if cfg.Runtime.Default != "auto" {
 		t.Errorf("Runtime.Default = %s, want auto", cfg.Runtime.Default)
 	}

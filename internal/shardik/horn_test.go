@@ -25,12 +25,19 @@ func TestHorn_SuccessOnFirstAttempt(t *testing.T) {
 		FailureThreshold: 3,
 		HalfOpenTimeout:  100 * time.Millisecond,
 	})
-	req, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
+	req, err := http.NewRequest(http.MethodGet, srv.URL, nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
 	resp, err := h.RoundTrip(req)
 	if err != nil {
 		t.Fatalf("RoundTrip: %v", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Fatalf("resp.Body.Close: %v", closeErr)
+		}
+	}()
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("status = %d, want 200", resp.StatusCode)
 	}
@@ -56,12 +63,19 @@ func TestHorn_RetriesOnServerError(t *testing.T) {
 		HalfOpenTimeout:  1 * time.Second,
 	})
 
-	req, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
+	req, err := http.NewRequest(http.MethodGet, srv.URL, nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
 	resp, err := h.RoundTrip(req)
 	if err != nil {
 		t.Fatalf("RoundTrip: %v", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Fatalf("resp.Body.Close: %v", closeErr)
+		}
+	}()
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("final status = %d, want 200", resp.StatusCode)
 	}
@@ -87,16 +101,24 @@ func TestHorn_CircuitBreakerOpensAfterThreshold(t *testing.T) {
 
 	// Trip the breaker.
 	for range 3 {
-		req, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
+		req, err := http.NewRequest(http.MethodGet, srv.URL, nil)
+		if err != nil {
+			t.Fatalf("NewRequest: %v", err)
+		}
 		resp, err := h.RoundTrip(req)
 		if err == nil {
-			_ = resp.Body.Close()
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				t.Fatalf("resp.Body.Close: %v", closeErr)
+			}
 		}
 	}
 
 	// Next request should be rejected immediately by the open breaker.
-	req, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
-	_, err := h.RoundTrip(req)
+	req, err := http.NewRequest(http.MethodGet, srv.URL, nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	_, err = h.RoundTrip(req)
 	if err == nil {
 		t.Error("expected circuit breaker error, got nil")
 	}
@@ -125,22 +147,34 @@ func TestHorn_CircuitBreakerHalfOpenAfterTimeout(t *testing.T) {
 	}))
 	defer failSrv.Close()
 
-	req, _ := http.NewRequest(http.MethodGet, failSrv.URL, nil)
+	req, err := http.NewRequest(http.MethodGet, failSrv.URL, nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
 	resp, err := h.RoundTrip(req)
 	if err == nil {
-		_ = resp.Body.Close()
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Fatalf("resp.Body.Close: %v", closeErr)
+		}
 	}
 
 	// Wait for half-open window.
 	time.Sleep(20 * time.Millisecond)
 
 	// Now probe should go through.
-	req2, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
+	req2, err2 := http.NewRequest(http.MethodGet, srv.URL, nil)
+	if err2 != nil {
+		t.Fatalf("NewRequest: %v", err2)
+	}
 	resp2, err2 := h.RoundTrip(req2)
 	if err2 != nil {
 		t.Fatalf("half-open probe: %v", err2)
 	}
-	defer func() { _ = resp2.Body.Close() }()
+	defer func() {
+		if closeErr := resp2.Body.Close(); closeErr != nil {
+			t.Fatalf("resp2.Body.Close: %v", closeErr)
+		}
+	}()
 	if calls == 0 {
 		t.Error("expected probe request to reach server")
 	}
@@ -162,12 +196,19 @@ func TestHorn_DoesNotRetry4xx(t *testing.T) {
 		HalfOpenTimeout:  1 * time.Second,
 	})
 
-	req, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
+	req, err := http.NewRequest(http.MethodGet, srv.URL, nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
 	resp, err := h.RoundTrip(req)
 	if err != nil {
 		t.Fatalf("RoundTrip: %v", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Fatalf("resp.Body.Close: %v", closeErr)
+		}
+	}()
 	if attempts != 1 {
 		t.Errorf("attempts = %d, want 1 (404 should not be retried)", attempts)
 	}
@@ -200,12 +241,19 @@ func TestHorn_NilInnerUsesDefaultTransport(t *testing.T) {
 		FailureThreshold: 3,
 		HalfOpenTimeout:  1 * time.Second,
 	})
-	req, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
+	req, err := http.NewRequest(http.MethodGet, srv.URL, nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
 	resp, err := h.RoundTrip(req)
 	if err != nil {
 		t.Fatalf("RoundTrip with nil inner: %v", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Fatalf("resp.Body.Close: %v", closeErr)
+		}
+	}()
 }
 
 func TestHorn_ContextCancelledDuringBackoff(t *testing.T) {
@@ -225,7 +273,10 @@ func TestHorn_ContextCancelledDuringBackoff(t *testing.T) {
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
 
 	// Cancel after the first attempt fires.
 	go func() {
@@ -233,7 +284,7 @@ func TestHorn_ContextCancelledDuringBackoff(t *testing.T) {
 		cancel()
 	}()
 
-	_, err := h.RoundTrip(req)
+	_, err = h.RoundTrip(req)
 	if err == nil {
 		t.Fatal("expected error after context cancellation")
 	}
@@ -248,8 +299,11 @@ func TestHorn_TransportError(t *testing.T) {
 		FailureThreshold: 10,
 		HalfOpenTimeout:  10 * time.Second,
 	})
-	req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1:1/", nil)
-	_, err := h.RoundTrip(req)
+	req, err := http.NewRequest(http.MethodGet, "http://127.0.0.1:1/", nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	_, err = h.RoundTrip(req)
 	if err == nil {
 		t.Fatal("expected error for unreachable server")
 	}
@@ -276,12 +330,19 @@ func TestHorn_BackoffCapsAtMaxDelay(t *testing.T) {
 		HalfOpenTimeout:  10 * time.Second,
 	})
 
-	req, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
+	req, err := http.NewRequest(http.MethodGet, srv.URL, nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
 	resp, err := h.RoundTrip(req)
 	if err != nil {
 		t.Fatalf("RoundTrip: %v", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Fatalf("resp.Body.Close: %v", closeErr)
+		}
+	}()
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("status = %d, want 200", resp.StatusCode)
 	}

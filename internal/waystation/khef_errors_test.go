@@ -23,7 +23,11 @@ func TestAcquireLock_MkdirError(t *testing.T) {
 	if err := os.Chmod(parent, 0o500); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(parent, 0o700) })
+	t.Cleanup(func() {
+		if err := os.Chmod(parent, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	// Store root inside the unwriteable parent — MkdirAll(locks/) cannot create it.
 	s := newStoreAt(t, filepath.Join(parent, "ws"))
@@ -41,7 +45,11 @@ func TestAcquireReadLock_MkdirError(t *testing.T) {
 	if err := os.Chmod(parent, 0o500); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(parent, 0o700) })
+	t.Cleanup(func() {
+		if err := os.Chmod(parent, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	s := newStoreAt(t, filepath.Join(parent, "ws"))
 	_, err := s.AcquireReadLock(context.Background(), "test")
@@ -64,7 +72,11 @@ func TestAcquireLock_OpenFileError(t *testing.T) {
 	if err := os.Chmod(locksDir, 0o500); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(locksDir, 0o700) })
+	t.Cleanup(func() {
+		if err := os.Chmod(locksDir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	_, err := s.AcquireLock(context.Background(), "test")
 	if err == nil {
@@ -85,7 +97,11 @@ func TestAcquireReadLock_OpenFileError(t *testing.T) {
 	if err := os.Chmod(locksDir, 0o500); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(locksDir, 0o700) })
+	t.Cleanup(func() {
+		if err := os.Chmod(locksDir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	_, err := s.AcquireReadLock(context.Background(), "test")
 	if err == nil {

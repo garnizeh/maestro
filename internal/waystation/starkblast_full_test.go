@@ -53,7 +53,11 @@ func TestCheckAndMigrate_ReadError(t *testing.T) {
 	if err := os.Chmod(schemaPath, 0o000); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(schemaPath, 0o600) })
+	t.Cleanup(func() {
+		if err := os.Chmod(schemaPath, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	if err := s.CheckAndMigrate(); err == nil {
 		t.Error("expected error when schema file is unreadable")
@@ -75,7 +79,11 @@ func TestSchemaVersion_ReadError(t *testing.T) {
 	if err := os.Chmod(schemaPath, 0o000); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(schemaPath, 0o600) })
+	t.Cleanup(func() {
+		if err := os.Chmod(schemaPath, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	_, err := s.SchemaVersion()
 	if err == nil {

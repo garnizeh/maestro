@@ -13,6 +13,13 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/rs/zerolog/log"
+)
+
+const (
+	stdioCount        = 2
+	copierWaitTimeout = 5 * time.Second
 )
 
 // MonitorResult carries the outcome of a monitored container run.
@@ -23,90 +30,206 @@ type MonitorResult struct {
 	ExitCode int
 }
 
-// Monitor is the native Go container monitor (Cort MVP).
-//
-// It uses the OCI runtime (via [Eld]) to create and start the container, then
-// supervises the container process: capturing stdio → log file, writing the
-// PID file, and collecting the exit code when the process terminates.
-//
-// For detached containers the monitor runs the container runtime and returns
-// immediately after the process starts. The container process continues
-// independently.
+// Monitor supervises the container process and manages its lifecycle.
 type Monitor struct {
-	runtime Eld
-	// osStat is injectable for testing.
-	osStat func(string) (os.FileInfo, error)
+	runtime   Eld
+	commander Commander
+	fs        FS
 }
 
-// NewMonitor returns a [Monitor] backed by the given [Eld] runtime.
+// NewMonitor returns a new [Monitor] for the given runtime.
 func NewMonitor(runtime Eld) *Monitor {
 	return &Monitor{
-		runtime: runtime,
-		osStat:  os.Stat,
+		runtime:   runtime,
+		commander: RealCommander{},
+		fs:        RealFS{},
 	}
+}
+
+// WithFS sets a custom filesystem implementation for the monitor.
+func (m *Monitor) WithFS(fs FS) *Monitor {
+	m.fs = fs
+	return m
+}
+
+// WithCommander sets a custom commander implementation for the monitor.
+func (m *Monitor) WithCommander(c Commander) *Monitor {
+	m.commander = c
+	return m
 }
 
 // Run creates and starts the container described by cfg, then supervises it.
-//
-// For foreground containers (cfg.Detach=false) Run blocks until the container
-// exits and returns the exit code in [MonitorResult].
-//
-// For detached containers (cfg.Detach=true) Run creates and starts the container,
-// writes the PID file, and then returns immediately. The container process
-// continues independently.
 func (m *Monitor) Run(ctx context.Context, cfg MonitorConfig) (*MonitorResult, error) {
-	// Ensure the log file directory exists.
-	if mkdirErr := os.MkdirAll(filepath.Dir(cfg.LogPath), dirPerm); mkdirErr != nil {
-		return nil, fmt.Errorf("monitor: create log dir: %w", mkdirErr)
+	log.Debug().Str("id", cfg.ContainerID).Bool("detach", cfg.Detach).
+		Msg("monitor: starting supervision")
+
+	// ── Background Handling (Detach) ──────────────────────────────────────────
+	if cfg.Detach && os.Getenv("MAESTRO_MONITOR_ID") == "" {
+		return m.startBackground(cfg)
 	}
 
-	// Open the log file for append.
-	logFile, err := os.OpenFile(cfg.LogPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, filePerm)
+	// ── Setup Log Redirection ─────────────────────────────────────────────────
+	logFile, err := m.setupLogFile(cfg.LogPath)
 	if err != nil {
-		return nil, fmt.Errorf("monitor: open log file: %w", err)
+		return nil, err
 	}
 	defer logFile.Close()
 
-	// Create and start the container via Eld.
-	if createErr := m.runtime.Create(ctx, cfg.ContainerID, cfg.BundlePath, nil); createErr != nil {
+	// Create pipes for stdout/stderr capture.
+	outR, outW, errR, errW, err := m.createStdioPipes()
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = outR.Close()
+		_ = errR.Close()
+	}()
+
+	// ── Stdio Capture Loop ────────────────────────────────────────────────────
+	done := make(chan struct{}, stdioCount)
+	m.startStdioCopiers(outR, errR, logFile, cfg, done)
+
+	// ── Execute and Supervise ─────────────────────────────────────────────────
+	return m.executeAndSupervise(ctx, cfg, outW, errW, done)
+}
+
+func (m *Monitor) createStdioPipes() (*os.File, *os.File, *os.File, *os.File, error) {
+	outR, outW, err := os.Pipe()
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("monitor: pipe stdout: %w", err)
+	}
+	errR, errW, err := os.Pipe()
+	if err != nil {
+		_ = outR.Close()
+		_ = outW.Close()
+		return nil, nil, nil, nil, fmt.Errorf("monitor: pipe stderr: %w", err)
+	}
+	return outR, outW, errR, errW, nil
+}
+
+func (m *Monitor) executeAndSupervise(
+	ctx context.Context,
+	cfg MonitorConfig,
+	outW, errW *os.File,
+	done chan struct{},
+) (*MonitorResult, error) {
+	// ── Create and start container ────────────────────────────────────────────
+	createOpts := &CreateOpts{
+		Stdout:       outW,
+		Stderr:       errW,
+		LauncherPath: cfg.LauncherPath,
+	}
+	createErr := m.runtime.Create(ctx, cfg.ContainerID, cfg.BundlePath, createOpts)
+	// We MUST close the write ends so readers get EOF when the container exits.
+	_ = outW.Close()
+	_ = errW.Close()
+
+	if createErr != nil {
 		return nil, fmt.Errorf("monitor: eld create: %w", createErr)
 	}
-	if startErr := m.runtime.Start(ctx, cfg.ContainerID); startErr != nil {
+
+	startOpts := &StartOpts{
+		LauncherPath: cfg.LauncherPath,
+	}
+	if startErr := m.runtime.Start(ctx, cfg.ContainerID, startOpts); startErr != nil {
 		return nil, fmt.Errorf("monitor: eld start: %w", startErr)
 	}
 
-	// Poll the runtime state to get the PID.
-	pid, pidErr := m.waitForPid(ctx, cfg.ContainerID, cfg.Timeout)
-	if pidErr != nil {
-		return nil, fmt.Errorf("monitor: wait for pid: %w", pidErr)
+	// ── Poll for PID ──────────────────────────────────────────────────────────
+	pid, err := m.waitForPid(ctx, cfg.ContainerID, cfg.Timeout)
+	if err != nil {
+		return nil, fmt.Errorf("monitor: wait for pid: %w", err)
 	}
 
-	// Write the PID file.
-	if pidFile := cfg.PidFile; pidFile != "" {
+	if cfg.PidFile != "" {
 		pidData := strconv.Itoa(pid) + "\n"
-		if writeErr := atomicWriteFile(pidFile, []byte(pidData), filePerm); writeErr != nil {
-			return nil, fmt.Errorf("monitor: write pid file: %w", writeErr)
+		if wErr := m.atomicWriteFile(cfg.PidFile, []byte(pidData), filePerm); wErr != nil {
+			return nil, fmt.Errorf("monitor: write pid file: %w", wErr)
 		}
 	}
 
-	if cfg.Detach {
-		// Detached: return immediately, container runs independently.
-		return &MonitorResult{Pid: pid}, nil
+	// ── Wait for Exit ─────────────────────────────────────────────────────────
+	exitCode, err := m.waitForExit(ctx, cfg.ContainerID)
+	if err != nil {
+		return nil, fmt.Errorf("monitor: wait for exit: %w", err)
 	}
 
-	// Foreground: stream logs and wait for the container to exit.
-	exitCode, waitErr := m.waitForExit(ctx, cfg.ContainerID, logFile)
-	if waitErr != nil {
-		return nil, fmt.Errorf("monitor: wait for exit: %w", waitErr)
+	// ── Wait for Goroutines ───────────────────────────────────────────────────
+	log.Debug().Msg("monitor: waiting for copier goroutines")
+	for i := range stdioCount {
+		select {
+		case <-done:
+			log.Debug().Int("i", i).Msg("monitor: goroutine finished")
+		case <-time.After(copierWaitTimeout):
+			log.Warn().Int("i", i).Msg("monitor: timed out waiting for goroutine")
+		}
 	}
 
-	// Write the exit code file.
-	if exitFile := cfg.ExitFile; exitFile != "" {
+	if cfg.ExitFile != "" {
 		exitData := strconv.Itoa(exitCode) + "\n"
-		_ = atomicWriteFile(exitFile, []byte(exitData), filePerm)
+		if wErr := m.atomicWriteFile(cfg.ExitFile, []byte(exitData), filePerm); wErr != nil {
+			log.Warn().
+				Err(wErr).
+				Str("exitFile", cfg.ExitFile).
+				Msg("monitor: failed to write exit file")
+		}
 	}
 
 	return &MonitorResult{Pid: pid, ExitCode: exitCode}, nil
+}
+
+// startBackground re-executes the current process as a detached monitor.
+func (m *Monitor) startBackground(cfg MonitorConfig) (*MonitorResult, error) {
+	self, executableErr := os.Executable()
+	if executableErr != nil {
+		return nil, executableErr
+	}
+
+	// Execute the current process as a detached monitor.
+	monitorArgs := []string{"system", "monitor",
+		"--id", cfg.ContainerID,
+		"--bundle", cfg.BundlePath,
+		"--log", cfg.LogPath,
+		"--pid-file", cfg.PidFile,
+		"--exit-file", cfg.ExitFile,
+	}
+	if cfg.LauncherPath != "" {
+		monitorArgs = append(monitorArgs, "--launcher", cfg.LauncherPath)
+	}
+	cmd := m.commander.Command(self, monitorArgs...)
+	cmd.Env = append(os.Environ(), "MAESTRO_MONITOR_ID="+cfg.ContainerID)
+
+	// Detach from the terminal.
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setsid: true,
+	}
+
+	log.Debug().Str("id", cfg.ContainerID).Strs("args", monitorArgs).
+		Msg("monitor: re-executing in background")
+
+	if startErr := cmd.Start(); startErr != nil {
+		return nil, fmt.Errorf("monitor: start background: %w", startErr)
+	}
+
+	// Return the PID of the background monitor.
+	return &MonitorResult{Pid: cmd.Process.Pid}, nil
+}
+
+func (m *Monitor) copyToLog(r io.Reader, w io.Writer, console io.Writer, stream string) {
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		line := scanner.Text()
+		entry := logLine{
+			Stream: stream,
+			Time:   time.Now().UTC().Format(time.RFC3339Nano),
+			Log:    line + "\n",
+		}
+		writeLogLine(w, entry)
+
+		if console != nil {
+			fmt.Fprintln(console, line)
+		}
+	}
 }
 
 // waitForPid polls the OCI runtime state until the container reaches the
@@ -147,13 +270,11 @@ func (m *Monitor) waitForPid(ctx context.Context, id string, timeout time.Durati
 }
 
 // waitForExit polls the OCI runtime state until the container stops,
-// streaming logs in the meantime, and returns the exit code.
-// For the MVP, logs are forwarded line-by-line via polling the runtime state.
+// and returns the exit code.
 func (m *Monitor) waitForExit(
 	ctx context.Context,
 	id string,
-	logFile io.Writer,
-) (int, error) { //nolint:unparam // currently returns 0, planned for future update
+) (int, error) { //nolint:unparam // exit code tracking WIP
 	for {
 		select {
 		case <-ctx.Done():
@@ -171,12 +292,6 @@ func (m *Monitor) waitForExit(
 		}
 
 		if state.Status == StatusStopped {
-			logEntry := logLine{
-				Stream: "stdout",
-				Time:   time.Now().UTC().Format(time.RFC3339Nano),
-				Log:    fmt.Sprintf("container %s exited with status %d\n", id, 0),
-			}
-			writeLogLine(logFile, logEntry)
 			return 0, nil
 		}
 
@@ -193,13 +308,18 @@ type logLine struct {
 
 // writeLogLine serialises l to logFile as a single JSON line.
 func writeLogLine(w io.Writer, l logLine) {
-	data, _ := json.Marshal(l)
-	_, _ = w.Write(append(data, '\n'))
+	data, errMarshal := json.Marshal(l)
+	if errMarshal != nil {
+		return // very unlikely for this struct
+	}
+	if _, errWrite := w.Write(append(data, '\n')); errWrite != nil {
+		return // failing to write a log line is the terminal destiny of this caller
+	}
 }
 
 // StreamLogs reads the container log file at logPath and writes each log
 // entry to w. If follow is true, it remains open and streams new entries.
-func StreamLogs( //nolint:gocognit // log streaming loop
+func StreamLogs(
 	ctx context.Context,
 	logPath string,
 	tail int,
@@ -207,9 +327,44 @@ func StreamLogs( //nolint:gocognit // log streaming loop
 	timestamps bool,
 	w io.Writer,
 ) error {
-	f, err := os.Open(logPath)
+	return DefaultStreamLogs(ctx, logPath, tail, follow, timestamps, w)
+}
+
+// DefaultStreamLogs is the package-level StreamLogs using RealFS.
+func DefaultStreamLogs(
+	ctx context.Context,
+	logPath string,
+	tail int,
+	follow bool,
+	timestamps bool,
+	w io.Writer,
+) error {
+	return NewLogStreamer(RealFS{}).StreamLogs(ctx, logPath, tail, follow, timestamps, w)
+}
+
+// LogStreamer handles log file streaming with an injected FS.
+type LogStreamer struct {
+	fs FS
+}
+
+// NewLogStreamer returns a [LogStreamer] with the given [FS].
+func NewLogStreamer(fs FS) *LogStreamer {
+	return &LogStreamer{fs: fs}
+}
+
+// StreamLogs reads the container log file at logPath and writes each log
+// entry to w.
+func (s *LogStreamer) StreamLogs( //nolint:gocognit // log streaming loop
+	ctx context.Context,
+	logPath string,
+	tail int,
+	follow bool,
+	timestamps bool,
+	w io.Writer,
+) error {
+	f, err := s.fs.Open(logPath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if s.fs.IsNotExist(err) {
 			// No logs yet — that's fine.
 			return nil
 		}
@@ -276,46 +431,60 @@ func StreamLogs( //nolint:gocognit // log streaming loop
 // printLogLine writes a single log line to w.
 func printLogLine(w io.Writer, l logLine, timestamps bool) {
 	if timestamps {
-		fmt.Fprintf(w, "%s %s", l.Time, l.Log)
-	} else {
-		fmt.Fprint(w, l.Log)
+		if _, err := fmt.Fprintf(w, "%s %s", l.Time, l.Log); err != nil {
+			log.Debug().Err(err).Msg("monitor: failed to write log line")
+		}
+		return
+	}
+
+	if _, err := fmt.Fprint(w, l.Log); err != nil {
+		log.Debug().Err(err).Msg("monitor: failed to write log line")
 	}
 }
 
 // atomicWriteFile writes data to path atomically using write-to-temp + rename.
-func atomicWriteFile(
+func (m *Monitor) atomicWriteFile(
 	path string,
 	data []byte,
 	perm os.FileMode,
 ) error {
 	dir := filepath.Dir(path)
-	tmp, err := os.CreateTemp(dir, ".tmp-*")
+	tmp, err := m.fs.CreateTemp(dir, ".tmp-*")
 	if err != nil {
 		return fmt.Errorf("create temp: %w", err)
 	}
 	tmpName := tmp.Name()
 	if _, writeErr := tmp.Write(data); writeErr != nil {
-		_ = tmp.Close()
-		_ = os.Remove(tmpName)
+		if errClose := tmp.Close(); errClose != nil {
+			log.Debug().Err(errClose).Msg("monitor: failed to close temp file after write error")
+		}
+		if errRem := m.fs.Remove(tmpName); errRem != nil {
+			log.Debug().Err(errRem).Msg("monitor: failed to remove temp file after write error")
+		}
 		return fmt.Errorf("write temp: %w", writeErr)
 	}
 	if closeErr := tmp.Close(); closeErr != nil {
-		_ = os.Remove(tmpName)
+		if errRem := m.fs.Remove(tmpName); errRem != nil {
+			log.Debug().Err(errRem).Msg("monitor: failed to remove temp file after close error")
+		}
 		return fmt.Errorf("close temp: %w", closeErr)
 	}
-	if chmodErr := os.Chmod(tmpName, perm); chmodErr != nil {
-		_ = os.Remove(tmpName)
+	if chmodErr := m.fs.Chmod(tmpName, perm); chmodErr != nil {
+		if errRem := m.fs.Remove(tmpName); errRem != nil {
+			log.Debug().Err(errRem).Msg("monitor: failed to remove temp file after chmod error")
+		}
 		return fmt.Errorf("chmod temp: %w", chmodErr)
 	}
-	if renameErr := os.Rename(tmpName, path); renameErr != nil {
-		_ = os.Remove(tmpName)
+	if renameErr := m.fs.Rename(tmpName, path); renameErr != nil {
+		if errRem := m.fs.Remove(tmpName); errRem != nil {
+			log.Debug().Err(errRem).Msg("monitor: failed to remove temp file after rename error")
+		}
 		return fmt.Errorf("rename: %w", renameErr)
 	}
 	return nil
 }
 
 // ParseSignal converts a string (number or name) to a [syscall.Signal].
-// Supported names: SIGKILL, SIGTERM, SIGINT, SIGQUIT, SIGHUP, SIGUSR1, SIGUSR2.
 func ParseSignal(s string) (syscall.Signal, error) {
 	// Try numeric first.
 	if n, err := strconv.Atoi(s); err == nil {
@@ -341,4 +510,33 @@ func ParseSignal(s string) (syscall.Signal, error) {
 	default:
 		return 0, fmt.Errorf("%w: %s", ErrInvalidSignal, s)
 	}
+}
+func (m *Monitor) setupLogFile(path string) (*os.File, error) {
+	if mkdirErr := m.fs.MkdirAll(filepath.Dir(path), dirPerm); mkdirErr != nil {
+		return nil, fmt.Errorf("monitor: create log dir: %w", mkdirErr)
+	}
+
+	logFile, err := m.fs.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, filePerm)
+	if err != nil {
+		return nil, fmt.Errorf("monitor: open log file: %w", err)
+	}
+	return logFile, nil
+}
+
+func (m *Monitor) startStdioCopiers(outR, errR io.ReadCloser, logFile io.Writer,
+	cfg MonitorConfig, done chan struct{}) {
+	go func() {
+		defer func() {
+			log.Debug().Msg("monitor: stdout copier exited")
+			done <- struct{}{}
+		}()
+		m.copyToLog(outR, logFile, cfg.Stdout, "stdout")
+	}()
+	go func() {
+		defer func() {
+			log.Debug().Msg("monitor: stderr copier exited")
+			done <- struct{}{}
+		}()
+		m.copyToLog(errR, logFile, cfg.Stderr, "stderr")
+	}()
 }

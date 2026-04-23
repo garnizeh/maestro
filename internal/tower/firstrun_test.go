@@ -33,7 +33,11 @@ func TestFirstRun_EnsureDefaultError(t *testing.T) {
 	if err := os.Chmod(parent, 0o500); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(parent, 0o700) })
+	t.Cleanup(func() {
+		if err := os.Chmod(parent, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	cfgPath := filepath.Join(parent, "subdir", "katet.toml")
 	_, err := tower.FirstRun(cfgPath, "")
