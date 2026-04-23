@@ -8,7 +8,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/rodrigo-baliza/maestro/internal/bin"
+	"github.com/garnizeh/maestro/internal/bin"
 )
 
 //nolint:gochecknoglobals // findBinary is a variable for testing purposes.

@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/internal/shardik"
-	"github.com/rodrigo-baliza/maestro/test/testutil"
+	"github.com/garnizeh/maestro/internal/shardik"
+	"github.com/garnizeh/maestro/test/testutil"
 )
 
 // ── Task #24 — Sigul credential chain ────────────────────────────────────────

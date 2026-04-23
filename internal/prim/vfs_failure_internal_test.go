@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/pkg/archive"
+	"github.com/garnizeh/maestro/pkg/archive"
 )
 
 func TestVFS_Prepare_MkdirFail(t *testing.T) {

@@ -14,7 +14,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/rodrigo-baliza/maestro/internal/bin"
+	"github.com/garnizeh/maestro/internal/bin"
 )
 
 const (

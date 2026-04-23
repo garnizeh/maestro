@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/internal/maturin"
+	"github.com/garnizeh/maestro/internal/maturin"
 )
 
 // execRootForPull runs the root command for pull tests and returns stdout+stderr.

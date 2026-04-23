@@ -10,7 +10,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
-	"github.com/rodrigo-baliza/maestro/internal/maturin"
+	"github.com/garnizeh/maestro/internal/maturin"
 )
 
 const (

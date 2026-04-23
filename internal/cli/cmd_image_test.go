@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rodrigo-baliza/maestro/internal/cli"
-	"github.com/rodrigo-baliza/maestro/internal/maturin"
+	"github.com/garnizeh/maestro/internal/cli"
+	"github.com/garnizeh/maestro/internal/maturin"
 )
 
 func TestImageCmd_Ls(t *testing.T) {

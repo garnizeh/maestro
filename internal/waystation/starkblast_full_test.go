@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/internal/waystation"
+	"github.com/garnizeh/maestro/internal/waystation"
 )
 
 // TestCheckAndMigrate_RunsMigrations verifies that a store at schema version 0

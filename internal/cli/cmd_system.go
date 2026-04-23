@@ -10,10 +10,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rodrigo-baliza/maestro/internal/bin"
-	"github.com/rodrigo-baliza/maestro/internal/eld"
-	"github.com/rodrigo-baliza/maestro/internal/prim"
-	"github.com/rodrigo-baliza/maestro/internal/white"
+	"github.com/garnizeh/maestro/internal/bin"
+	"github.com/garnizeh/maestro/internal/eld"
+	"github.com/garnizeh/maestro/internal/prim"
+	"github.com/garnizeh/maestro/internal/white"
 )
 
 func newSystemCheckCmd(_ *Handler) *cobra.Command {

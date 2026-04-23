@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/garnizeh/maestro/internal/white"
 	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/rodrigo-baliza/maestro/internal/white"
 	"github.com/rs/zerolog/log"
 )
 

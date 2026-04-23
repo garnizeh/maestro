@@ -1,4 +1,4 @@
-module github.com/rodrigo-baliza/maestro
+module github.com/garnizeh/maestro
 
 go 1.26.2
 

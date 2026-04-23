@@ -7,8 +7,8 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/internal/sys"
-	"github.com/rodrigo-baliza/maestro/internal/testutil"
+	"github.com/garnizeh/maestro/internal/sys"
+	"github.com/garnizeh/maestro/internal/testutil"
 )
 
 // mockTempFile abstracts [os.File] for testing.

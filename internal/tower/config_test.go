@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/internal/tower"
+	"github.com/garnizeh/maestro/internal/tower"
 )
 
 func TestConfigPath_Default(t *testing.T) {

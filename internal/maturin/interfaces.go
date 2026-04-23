@@ -5,8 +5,8 @@ import (
 	"io/fs"
 	"os"
 
-	"github.com/rodrigo-baliza/maestro/internal/sys"
-	"github.com/rodrigo-baliza/maestro/pkg/archive"
+	"github.com/garnizeh/maestro/internal/sys"
+	"github.com/garnizeh/maestro/pkg/archive"
 )
 
 // FS abstracts several os package functions.

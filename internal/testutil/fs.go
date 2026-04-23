@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/rodrigo-baliza/maestro/internal/sys"
+	"github.com/garnizeh/maestro/internal/sys"
 )
 
 // File abstracts [os.File] for testing.

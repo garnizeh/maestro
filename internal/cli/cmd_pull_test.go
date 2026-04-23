@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/internal/cli"
-	"github.com/rodrigo-baliza/maestro/internal/maturin"
+	"github.com/garnizeh/maestro/internal/cli"
+	"github.com/garnizeh/maestro/internal/maturin"
 )
 
 func TestImageCmd_Pull(t *testing.T) {

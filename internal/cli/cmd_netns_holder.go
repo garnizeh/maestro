@@ -21,8 +21,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rodrigo-baliza/maestro/internal/beam"
-	"github.com/rodrigo-baliza/maestro/internal/bin"
+	"github.com/garnizeh/maestro/internal/beam"
+	"github.com/garnizeh/maestro/internal/bin"
 )
 
 // newNetNSHolderCmd creates the hidden _netns_holder command.

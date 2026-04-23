@@ -3,7 +3,7 @@ package shardik_test
 import (
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/internal/shardik"
+	"github.com/garnizeh/maestro/internal/shardik"
 )
 
 // ── Task #27 — Thinny mirror resolution ──────────────────────────────────────

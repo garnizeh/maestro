@@ -5,7 +5,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/internal/beam"
+	"github.com/garnizeh/maestro/internal/beam"
 )
 
 func TestHandleInitialMount_Empty(t *testing.T) {

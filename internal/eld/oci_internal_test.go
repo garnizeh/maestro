@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/internal/testutil"
+	"github.com/garnizeh/maestro/internal/testutil"
 )
 
 type fakeResponse struct {

@@ -10,7 +10,7 @@ import (
 	"github.com/pelletier/go-toml/v2"
 	"github.com/rs/zerolog/log"
 
-	"github.com/rodrigo-baliza/maestro/internal/sys"
+	"github.com/garnizeh/maestro/internal/sys"
 )
 
 type FS interface {

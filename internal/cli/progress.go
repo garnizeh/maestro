@@ -8,7 +8,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/rodrigo-baliza/maestro/internal/maturin"
+	"github.com/garnizeh/maestro/internal/maturin"
 )
 
 // pullProgress accumulates per-layer events and renders them with lipgloss.

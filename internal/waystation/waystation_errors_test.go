@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/internal/waystation"
+	"github.com/garnizeh/maestro/internal/waystation"
 )
 
 func TestInit_MkdirError(t *testing.T) {

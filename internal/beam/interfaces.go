@@ -11,8 +11,8 @@ import (
 	"github.com/containernetworking/cni/libcni"
 	"github.com/containernetworking/cni/pkg/types"
 
-	"github.com/rodrigo-baliza/maestro/internal/sys"
-	"github.com/rodrigo-baliza/maestro/pkg/archive"
+	"github.com/garnizeh/maestro/internal/sys"
+	"github.com/garnizeh/maestro/pkg/archive"
 )
 
 const (

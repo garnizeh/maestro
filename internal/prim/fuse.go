@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/rodrigo-baliza/maestro/internal/white"
-	"github.com/rodrigo-baliza/maestro/pkg/archive"
+	"github.com/garnizeh/maestro/internal/white"
+	"github.com/garnizeh/maestro/pkg/archive"
 )
 
 // FuseOverlay implements the [Prim] interface using fuse-overlayfs.

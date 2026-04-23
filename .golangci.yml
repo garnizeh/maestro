@@ -11,7 +11,7 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/rodrigo-baliza/maestro
+        - github.com/garnizeh/maestro
     golines:
       max-len: 120
 

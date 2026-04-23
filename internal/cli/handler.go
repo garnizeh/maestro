@@ -8,9 +8,9 @@ import (
 
 	"github.com/mattn/go-isatty"
 
-	"github.com/rodrigo-baliza/maestro/internal/gan"
-	"github.com/rodrigo-baliza/maestro/internal/maturin"
-	"github.com/rodrigo-baliza/maestro/internal/shardik"
+	"github.com/garnizeh/maestro/internal/gan"
+	"github.com/garnizeh/maestro/internal/maturin"
+	"github.com/garnizeh/maestro/internal/shardik"
 )
 
 // Handler encapsulates all CLI command dependencies and global configuration.

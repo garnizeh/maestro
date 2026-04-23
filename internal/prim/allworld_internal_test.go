@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/pkg/archive"
+	"github.com/garnizeh/maestro/pkg/archive"
 )
 
 // ── tests ──────────────────────────────────────────────────────────────────────

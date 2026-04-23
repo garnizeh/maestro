@@ -11,7 +11,7 @@ import (
 
 	"github.com/opencontainers/go-digest"
 
-	"github.com/rodrigo-baliza/maestro/internal/maturin"
+	"github.com/garnizeh/maestro/internal/maturin"
 )
 
 // newTestStore returns a Store backed by a temporary directory.

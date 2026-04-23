@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/internal/waystation"
+	"github.com/garnizeh/maestro/internal/waystation"
 )
 
 type testRecord struct {

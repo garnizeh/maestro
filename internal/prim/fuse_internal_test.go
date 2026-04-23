@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/pkg/archive"
+	"github.com/garnizeh/maestro/pkg/archive"
 )
 
 func TestFuseOverlay_Prepare_Success(t *testing.T) {

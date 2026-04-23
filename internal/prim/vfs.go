@@ -10,7 +10,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/rodrigo-baliza/maestro/pkg/archive"
+	"github.com/garnizeh/maestro/pkg/archive"
 )
 
 // VFSMeta holds snapshot metadata for the VFS driver.

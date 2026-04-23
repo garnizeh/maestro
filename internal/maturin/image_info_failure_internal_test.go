@@ -13,7 +13,7 @@ import (
 
 	"github.com/opencontainers/go-digest"
 
-	"github.com/rodrigo-baliza/maestro/internal/testutil"
+	"github.com/garnizeh/maestro/internal/testutil"
 )
 
 func TestImageInfo_ListImages_Failures(t *testing.T) {

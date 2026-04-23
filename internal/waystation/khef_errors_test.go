@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/internal/waystation"
+	"github.com/garnizeh/maestro/internal/waystation"
 )
 
 // newStoreAt creates a Store at an arbitrary path without calling Init.

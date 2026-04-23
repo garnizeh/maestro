@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/internal/cli"
-	"github.com/rodrigo-baliza/maestro/internal/gan"
+	"github.com/garnizeh/maestro/internal/cli"
+	"github.com/garnizeh/maestro/internal/gan"
 )
 
 func TestContainerCmd_Stop(t *testing.T) {

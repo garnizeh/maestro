@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rodrigo-baliza/maestro/internal/shardik"
+	"github.com/garnizeh/maestro/internal/shardik"
 )
 
 // ── Task #26 — Horn retry + circuit breaker ───────────────────────────────────

@@ -10,8 +10,8 @@ import (
 
 	"github.com/opencontainers/go-digest"
 
-	"github.com/rodrigo-baliza/maestro/internal/prim"
-	"github.com/rodrigo-baliza/maestro/pkg/archive"
+	"github.com/garnizeh/maestro/internal/prim"
+	"github.com/garnizeh/maestro/pkg/archive"
 )
 
 func TestSwell_Success(t *testing.T) {

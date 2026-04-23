@@ -14,7 +14,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/rodrigo-baliza/maestro/internal/sys"
+	"github.com/garnizeh/maestro/internal/sys"
 )
 
 // ErrNotFound is returned when a requested state record does not exist.

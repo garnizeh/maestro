@@ -9,7 +9,7 @@ import (
 
 	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
 
-	"github.com/rodrigo-baliza/maestro/pkg/specgen"
+	"github.com/garnizeh/maestro/pkg/specgen"
 )
 
 // ── helpers ───────────────────────────────────────────────────────────────────

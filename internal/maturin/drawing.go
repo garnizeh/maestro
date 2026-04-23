@@ -19,7 +19,7 @@ import (
 const defaultParallelism = 4
 
 // RegistryClient is the interface Drawing uses to fetch remote image data.
-// [github.com/rodrigo-baliza/maestro/internal/shardik.Client] satisfies this interface.
+// [github.com/garnizeh/maestro/internal/shardik.Client] satisfies this interface.
 type RegistryClient interface {
 	GetManifest(ctx context.Context, refStr string) (ggcr.Descriptor, error)
 	GetImage(ctx context.Context, refStr string) (ggcr.Image, error)

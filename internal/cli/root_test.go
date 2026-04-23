@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/internal/cli"
+	"github.com/garnizeh/maestro/internal/cli"
 )
 
 // execRoot runs the root cobra command with the given args and captures output.

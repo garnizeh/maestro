@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/rodrigo-baliza/maestro/internal/sys"
+	"github.com/garnizeh/maestro/internal/sys"
 )
 
 // ── Internal testability interfaces ──────────────────────────────────────────

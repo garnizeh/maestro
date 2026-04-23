@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/internal/cli"
+	"github.com/garnizeh/maestro/internal/cli"
 )
 
 func TestFormatter(t *testing.T) {

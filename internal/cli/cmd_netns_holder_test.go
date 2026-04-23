@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rodrigo-baliza/maestro/internal/beam"
-	"github.com/rodrigo-baliza/maestro/internal/cli"
+	"github.com/garnizeh/maestro/internal/beam"
+	"github.com/garnizeh/maestro/internal/cli"
 )
 
 func TestNetNSHolderCmd_SocketRequired(t *testing.T) {

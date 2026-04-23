@@ -13,7 +13,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/rodrigo-baliza/maestro/internal/beam"
+	"github.com/garnizeh/maestro/internal/beam"
 )
 
 // OCIRuntime implements [Eld] by executing a generic OCI-compatible runtime

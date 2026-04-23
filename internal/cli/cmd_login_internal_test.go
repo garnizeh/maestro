@@ -8,7 +8,7 @@ import (
 	"testing"
 	"testing/iotest"
 
-	"github.com/rodrigo-baliza/maestro/internal/shardik"
+	"github.com/garnizeh/maestro/internal/shardik"
 )
 
 // execRootForLogin runs the root command for login/logout tests.

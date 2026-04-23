@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rodrigo-baliza/maestro/internal/tower"
+	"github.com/garnizeh/maestro/internal/tower"
 )
 
 func newConfigCmd(h *Handler) *cobra.Command {

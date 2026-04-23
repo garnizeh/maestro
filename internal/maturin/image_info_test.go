@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/internal/maturin"
+	"github.com/garnizeh/maestro/internal/maturin"
 )
 
 // ── ListImages ────────────────────────────────────────────────────────────────

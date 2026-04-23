@@ -9,7 +9,7 @@ import (
 
 	"github.com/opencontainers/go-digest"
 
-	"github.com/rodrigo-baliza/maestro/internal/maturin"
+	"github.com/garnizeh/maestro/internal/maturin"
 )
 
 func TestStore_PutManifest_Success(t *testing.T) {

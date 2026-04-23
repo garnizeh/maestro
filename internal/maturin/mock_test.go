@@ -3,7 +3,7 @@ package maturin //nolint:testpackage // mock helpers are part of the internal pa
 import (
 	"io"
 
-	"github.com/rodrigo-baliza/maestro/pkg/archive"
+	"github.com/garnizeh/maestro/pkg/archive"
 )
 
 type mockExtractor struct {

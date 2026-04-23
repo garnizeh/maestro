@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/rodrigo-baliza/maestro/internal/sys"
+	"github.com/garnizeh/maestro/internal/sys"
 )
 
 // FS abstracts filesystem operations used by the Prim storage drivers.

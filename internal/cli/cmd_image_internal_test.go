@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rodrigo-baliza/maestro/internal/maturin"
+	"github.com/garnizeh/maestro/internal/maturin"
 )
 
 // execRootForImage runs the root command for image tests and returns combined output.

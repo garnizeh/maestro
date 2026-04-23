@@ -18,7 +18,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/rodrigo-baliza/maestro/pkg/archive"
+	"github.com/garnizeh/maestro/pkg/archive"
 )
 
 const (

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/internal/tower"
+	"github.com/garnizeh/maestro/internal/tower"
 )
 
 func TestFirstRun_CreatesConfigAndReturnsTrue(t *testing.T) {

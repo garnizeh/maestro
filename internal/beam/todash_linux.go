@@ -21,8 +21,8 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/unix"
 
-	"github.com/rodrigo-baliza/maestro/internal/bin"
-	"github.com/rodrigo-baliza/maestro/internal/white"
+	"github.com/garnizeh/maestro/internal/bin"
+	"github.com/garnizeh/maestro/internal/white"
 )
 
 const (

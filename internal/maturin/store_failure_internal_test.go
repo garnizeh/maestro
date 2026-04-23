@@ -9,7 +9,7 @@ import (
 
 	"github.com/opencontainers/go-digest"
 
-	"github.com/rodrigo-baliza/maestro/internal/testutil"
+	"github.com/garnizeh/maestro/internal/testutil"
 )
 
 func TestStore_Put_Failures(t *testing.T) {

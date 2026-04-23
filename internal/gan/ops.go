@@ -15,11 +15,11 @@ import (
 	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/rs/zerolog/log"
 
-	"github.com/rodrigo-baliza/maestro/internal/beam"
-	"github.com/rodrigo-baliza/maestro/internal/eld"
-	"github.com/rodrigo-baliza/maestro/internal/prim"
-	"github.com/rodrigo-baliza/maestro/internal/white"
-	"github.com/rodrigo-baliza/maestro/pkg/specgen"
+	"github.com/garnizeh/maestro/internal/beam"
+	"github.com/garnizeh/maestro/internal/eld"
+	"github.com/garnizeh/maestro/internal/prim"
+	"github.com/garnizeh/maestro/internal/white"
+	"github.com/garnizeh/maestro/pkg/specgen"
 )
 
 const (

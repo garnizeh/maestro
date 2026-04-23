@@ -3,7 +3,7 @@ package waystation_test
 import (
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/internal/waystation"
+	"github.com/garnizeh/maestro/internal/waystation"
 )
 
 func TestCheckAndMigrate_FreshStore(t *testing.T) {

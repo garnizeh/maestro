@@ -11,7 +11,7 @@ import (
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 
-	"github.com/rodrigo-baliza/maestro/internal/testutil"
+	"github.com/garnizeh/maestro/internal/testutil"
 )
 
 func TestIndex_Lock_Failures(t *testing.T) {
