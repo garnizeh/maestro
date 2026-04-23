@@ -7,6 +7,7 @@ import (
 
 	ggcr "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/types"
+	"github.com/kr/pretty"
 )
 
 // ── fakeIndex (internal) ─────────────────────────────────────────────────────
@@ -69,8 +70,12 @@ func TestParsePlatform_OsArch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if p.OS != "linux" || p.Architecture != "amd64" || p.Variant != "" {
-		t.Errorf("got %+v, want linux/amd64", p)
+	want := ggcr.Platform{OS: "linux", Architecture: "amd64"}
+	if diff := pretty.Diff(want, p); len(diff) > 0 {
+		t.Log("parsePlatform(linux/amd64) mismatch")
+		t.Logf("want: %v", want)
+		t.Logf("got: %v", p)
+		t.Errorf("\n%s", diff)
 	}
 }
 
@@ -80,8 +85,12 @@ func TestParsePlatform_OsArchVariant(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if p.OS != "linux" || p.Architecture != "arm" || p.Variant != "v7" {
-		t.Errorf("got %+v, want linux/arm/v7", p)
+	want := ggcr.Platform{OS: "linux", Architecture: "arm", Variant: "v7"}
+	if diff := pretty.Diff(want, p); len(diff) > 0 {
+		t.Log("parsePlatform(linux/arm/v7) mismatch")
+		t.Logf("want: %v", want)
+		t.Logf("got: %v", p)
+		t.Errorf("\n%s", diff)
 	}
 }
 
@@ -128,8 +137,14 @@ func TestKeystoneSelect_ExactMatch_OsArchNoVariant(t *testing.T) {
 
 func TestKeystoneSelect_ExactMatch_WithVariant(t *testing.T) {
 	t.Parallel()
-	v6Desc := makeInternalDesc(&ggcr.Platform{OS: "linux", Architecture: "arm", Variant: "v6"}, "v6hex")
-	v7Desc := makeInternalDesc(&ggcr.Platform{OS: "linux", Architecture: "arm", Variant: "v7"}, "v7hex")
+	v6Desc := makeInternalDesc(
+		&ggcr.Platform{OS: "linux", Architecture: "arm", Variant: "v6"},
+		"v6hex",
+	)
+	v7Desc := makeInternalDesc(
+		&ggcr.Platform{OS: "linux", Architecture: "arm", Variant: "v7"},
+		"v7hex",
+	)
 	idx := makeInternalIndex([]ggcr.Descriptor{v6Desc, v7Desc})
 
 	got, err := keystoneSelect(idx, ggcr.Platform{OS: "linux", Architecture: "arm", Variant: "v7"})
@@ -145,7 +160,10 @@ func TestKeystoneSelect_FallbackWhenWantHasNoVariant(t *testing.T) {
 	t.Parallel()
 	// Index only has arm64/v8; want has no variant → fallback accepts any variant.
 	idx := makeInternalIndex([]ggcr.Descriptor{
-		makeInternalDesc(&ggcr.Platform{OS: "linux", Architecture: "arm64", Variant: "v8"}, "v8hex"),
+		makeInternalDesc(
+			&ggcr.Platform{OS: "linux", Architecture: "arm64", Variant: "v8"},
+			"v8hex",
+		),
 	})
 
 	got, err := keystoneSelect(idx, ggcr.Platform{OS: "linux", Architecture: "arm64"})

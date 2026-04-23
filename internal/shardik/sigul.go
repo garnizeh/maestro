@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/authn"
+	"github.com/rs/zerolog/log"
 )
 
 // SigulConfig carries optional overrides for the credential resolution chain.
@@ -19,6 +20,8 @@ type SigulConfig struct {
 	Password string
 	// AuthFilePath overrides the default ~/.config/maestro/auth.json (optional).
 	AuthFilePath string
+	// HomeDir is a function providing the user's home directory (DI point).
+	HomeDir func() (string, error)
 }
 
 // authEntry is a single entry in the Maestro auth.json credential store.
@@ -47,6 +50,9 @@ type sigulKeychain struct {
 //  5. Credential helpers (via Docker keychain)
 //  6. Anonymous fallback
 func NewSigulKeychain(cfg SigulConfig) authn.Keychain {
+	if cfg.HomeDir == nil {
+		cfg.HomeDir = os.UserHomeDir
+	}
 	return &sigulKeychain{cfg: cfg}
 }
 
@@ -68,7 +74,7 @@ func (s *sigulKeychain) Resolve(resource authn.Resource) (authn.Authenticator, e
 	}
 
 	// Priority 3 — Maestro auth.json.
-	if auth, err := resolveFromAuthFile(s.cfg.AuthFilePath, registry); err == nil {
+	if auth, err := resolveFromAuthFile(s.cfg, registry); err == nil {
 		return auth, nil
 	}
 
@@ -83,8 +89,8 @@ func (s *sigulKeychain) Resolve(resource authn.Resource) (authn.Authenticator, e
 }
 
 // resolveFromAuthFile looks up registry credentials from the Maestro auth.json.
-func resolveFromAuthFile(pathOverride, registry string) (authn.Authenticator, error) {
-	path, pathErr := authFilePath(pathOverride)
+func resolveFromAuthFile(cfg SigulConfig, registry string) (authn.Authenticator, error) {
+	path, pathErr := authFilePath(cfg)
 	if pathErr != nil {
 		return nil, pathErr
 	}
@@ -96,11 +102,9 @@ func resolveFromAuthFile(pathOverride, registry string) (authn.Authenticator, er
 
 	// Warn if permissions are too open.
 	if info, statErr := os.Stat(path); statErr == nil {
-		if info.Mode().Perm()&0o177 != 0 {
-			_, _ = fmt.Fprintf(os.Stderr,
-				"warning: auth file %s has overly permissive permissions %v\n",
-				path, info.Mode().Perm(),
-			)
+		if info.Mode().Perm()&0o077 != 0 {
+			log.Warn().Str("path", path).Stringer("mode", info.Mode().Perm()).
+				Msg("sigul: auth file has overly permissive permissions; recommend 0600")
 		}
 	}
 
@@ -126,8 +130,8 @@ func resolveFromAuthFile(pathOverride, registry string) (authn.Authenticator, er
 }
 
 // SaveCredentials writes credentials for the given registry to auth.json.
-func SaveCredentials(registry, username, password string, pathOverride string) error {
-	path, err := authFilePath(pathOverride)
+func SaveCredentials(registry, username, password string, cfg SigulConfig) error {
+	path, err := authFilePath(cfg)
 	if err != nil {
 		return err
 	}
@@ -139,7 +143,12 @@ func SaveCredentials(registry, username, password string, pathOverride string) e
 	// Load existing file, or start fresh.
 	var af authFile
 	if data, readErr := os.ReadFile(path); readErr == nil {
-		_ = json.Unmarshal(data, &af)
+		if jsonErr := json.Unmarshal(data, &af); jsonErr != nil {
+			log.Warn().
+				Err(jsonErr).
+				Str("path", path).
+				Msg("sigul: failed to parse existing auth file; starting fresh")
+		}
 	}
 	if af.Auths == nil {
 		af.Auths = make(map[string]authEntry)
@@ -147,8 +156,10 @@ func SaveCredentials(registry, username, password string, pathOverride string) e
 
 	af.Auths[registry] = authEntry{Username: username, Password: password}
 
-	// json.MarshalIndent cannot fail for the authFile struct (plain string fields).
-	data, _ := json.MarshalIndent(af, "", "  ")
+	data, jsonErr := json.MarshalIndent(af, "", "  ")
+	if jsonErr != nil {
+		return fmt.Errorf("marshal auth file: %w", jsonErr)
+	}
 
 	if writeErr := os.WriteFile(path, data, 0o600); writeErr != nil {
 		return fmt.Errorf("write auth file: %w", writeErr)
@@ -157,8 +168,8 @@ func SaveCredentials(registry, username, password string, pathOverride string) e
 }
 
 // RemoveCredentials removes credentials for a registry from auth.json.
-func RemoveCredentials(registry string, pathOverride string) error {
-	path, err := authFilePath(pathOverride)
+func RemoveCredentials(registry string, cfg SigulConfig) error {
+	path, err := authFilePath(cfg)
 	if err != nil {
 		return err
 	}
@@ -179,8 +190,10 @@ func RemoveCredentials(registry string, pathOverride string) error {
 	delete(af.Auths, registry)
 	delete(af.Auths, bareHost(registry))
 
-	// json.MarshalIndent cannot fail for the authFile struct (plain string fields).
-	out, _ := json.MarshalIndent(af, "", "  ")
+	out, jsonErr := json.MarshalIndent(af, "", "  ")
+	if jsonErr != nil {
+		return fmt.Errorf("marshal auth file: %w", jsonErr)
+	}
 
 	if writeErr := os.WriteFile(path, out, 0o600); writeErr != nil {
 		return fmt.Errorf("write auth file: %w", writeErr)
@@ -188,18 +201,16 @@ func RemoveCredentials(registry string, pathOverride string) error {
 	return nil
 }
 
-// userHomeDirFn is the function used to look up the user's home directory.
-// Overridden in tests to simulate home-directory lookup failures.
-//
-//nolint:gochecknoglobals // dependency injection point: overridden in tests
-var userHomeDirFn = os.UserHomeDir
-
 // authFilePath returns the path to auth.json, using pathOverride when non-empty.
-func authFilePath(override string) (string, error) {
-	if override != "" {
-		return override, nil
+func authFilePath(cfg SigulConfig) (string, error) {
+	if cfg.AuthFilePath != "" {
+		return cfg.AuthFilePath, nil
 	}
-	home, err := userHomeDirFn()
+	homeDirFn := cfg.HomeDir
+	if homeDirFn == nil {
+		homeDirFn = os.UserHomeDir
+	}
+	home, err := homeDirFn()
 	if err != nil {
 		return "", fmt.Errorf("cannot determine home directory: %w", err)
 	}

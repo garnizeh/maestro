@@ -1,5 +1,5 @@
 BINARY     := maestro
-MODULE     := github.com/rodrigo-baliza/maestro
+MODULE     := github.com/garnizeh/maestro
 CMD        := ./cmd/maestro
 
 # Version info injected at build time via ldflags

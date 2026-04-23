@@ -22,6 +22,12 @@ import (
 	"path/filepath"
 
 	"github.com/opencontainers/go-digest"
+	"github.com/rs/zerolog/log"
+)
+
+const (
+	dirPerm  = 0o700
+	filePerm = 0o600
 )
 
 // ErrBlobNotFound is returned when a blob digest is absent from the CAS.
@@ -39,11 +45,30 @@ var ErrTagNotFound = errors.New("tag not found")
 // e.g., ~/.local/share/maestro).
 type Store struct {
 	root string
+
+	fs        FS
+	extractor Extractor
 }
 
 // New returns a [Store] rooted at root.
 func New(root string) *Store {
-	return &Store{root: root}
+	return &Store{
+		root:      root,
+		fs:        RealFS{},
+		extractor: realExtractor{},
+	}
+}
+
+// WithFS sets a custom filesystem implementation.
+func (s *Store) WithFS(f FS) *Store {
+	s.fs = f
+	return s
+}
+
+// WithExtractor sets a custom layer extractor implementation.
+func (s *Store) WithExtractor(e Extractor) *Store {
+	s.extractor = e
+	return s
 }
 
 // Root returns the store root directory path.
@@ -69,27 +94,39 @@ func (s *Store) Put(dgst digest.Digest, r io.Reader) error {
 	}
 
 	dir := s.blobDir()
-	if mkdirErr := os.MkdirAll(dir, 0o700); mkdirErr != nil {
+	if mkdirErr := s.fs.MkdirAll(dir, dirPerm); mkdirErr != nil {
 		return fmt.Errorf("create blob dir: %w", mkdirErr)
 	}
 
-	tmp, openErr := os.CreateTemp(dir, ".tmp-blob-")
+	tmp, openErr := s.fs.CreateTemp(dir, ".tmp-blob-")
 	if openErr != nil {
 		//coverage:ignore non-writable dir requires root check; covered by TestStore_Put_CreateTempError when run as non-root
 		return fmt.Errorf("create temp blob: %w", openErr)
 	}
 
-	tmpPath, writeErr := writeAndVerify(tmp, dgst, r)
+	tmpPath, writeErr := s.writeAndVerify(tmp, dgst, r)
 	if writeErr != nil {
-		_ = os.Remove(tmpPath)
+		if errRem := s.fs.Remove(tmpPath); errRem != nil && !os.IsNotExist(errRem) {
+			log.Debug().
+				Err(errRem).
+				Str("path", tmpPath).
+				Msg("maturin: failed to remove temp blob after write error")
+		}
 		return writeErr
 	}
 
 	dest := s.blobPath(dgst.Hex())
-	if renameErr := os.Rename(tmpPath, dest); renameErr != nil {
-		_ = os.Remove(tmpPath)
+	if renameErr := s.fs.Rename(tmpPath, dest); renameErr != nil {
+		if errRem := s.fs.Remove(tmpPath); errRem != nil && !os.IsNotExist(errRem) {
+			log.Debug().
+				Err(errRem).
+				Str("path", tmpPath).
+				Msg("maturin: failed to remove temp blob after rename failure")
+		}
 		return fmt.Errorf("commit blob %s: %w", dgst, renameErr)
 	}
+
+	log.Debug().Str("dgst", dgst.String()).Msg("maturin: blob stored")
 
 	return nil
 }
@@ -102,7 +139,7 @@ func (s *Store) Get(dgst digest.Digest) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("invalid digest: %w", validateErr)
 	}
 
-	f, openErr := os.Open(s.blobPath(dgst.Hex()))
+	f, openErr := s.fs.Open(s.blobPath(dgst.Hex()))
 	if openErr != nil {
 		if os.IsNotExist(openErr) {
 			return nil, fmt.Errorf("%w: %s", ErrBlobNotFound, dgst)
@@ -110,19 +147,21 @@ func (s *Store) Get(dgst digest.Digest) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("open blob %s: %w", dgst, openErr)
 	}
 
+	log.Debug().Str("dgst", dgst.String()).Msg("maturin: blob opened for reading")
+
 	return &verifyingReader{r: f, h: dgst.Algorithm().Hash(), expected: dgst}, nil
 }
 
 // Exists reports whether the CAS contains a blob with the given digest.
 func (s *Store) Exists(dgst digest.Digest) bool {
-	_, err := os.Stat(s.blobPath(dgst.Hex()))
+	_, err := s.fs.Stat(s.blobPath(dgst.Hex()))
 	return err == nil
 }
 
 // Delete removes the blob with the given digest from the CAS.
 // Returns [ErrBlobNotFound] if no such blob exists.
 func (s *Store) Delete(dgst digest.Digest) error {
-	if removeErr := os.Remove(s.blobPath(dgst.Hex())); removeErr != nil {
+	if removeErr := s.fs.Remove(s.blobPath(dgst.Hex())); removeErr != nil {
 		if os.IsNotExist(removeErr) {
 			return fmt.Errorf("%w: %s", ErrBlobNotFound, dgst)
 		}
@@ -134,16 +173,19 @@ func (s *Store) Delete(dgst digest.Digest) error {
 // writeAndVerify writes r to f while hashing, verifies the digest, closes f,
 // and returns the path of the closed temp file. On error the file is not
 // removed — the caller is responsible for cleanup.
-func writeAndVerify(f *os.File, dgst digest.Digest, r io.Reader) (string, error) {
+func (s *Store) writeAndVerify(f *os.File, dgst digest.Digest, r io.Reader) (string, error) {
 	h := dgst.Algorithm().Hash()
-	_, copyErr := io.Copy(io.MultiWriter(f, h), r)
+	_, copyErr := s.fs.Copy(io.MultiWriter(f, h), r)
 	closeErr := f.Close()
 
 	if copyErr != nil {
 		return f.Name(), fmt.Errorf("write blob: %w", copyErr)
 	}
 	if closeErr != nil {
-		return f.Name(), fmt.Errorf("close blob: %w", closeErr) //coverage:ignore unreachable after successful Write
+		return f.Name(), fmt.Errorf(
+			"close blob: %w",
+			closeErr,
+		) //coverage:ignore unreachable after successful Write
 	}
 
 	actual := digest.Digest(string(dgst.Algorithm()) + ":" + hex.EncodeToString(h.Sum(nil)))
@@ -165,10 +207,15 @@ type verifyingReader struct {
 func (v *verifyingReader) Read(p []byte) (int, error) {
 	n, readErr := v.r.Read(p)
 	if n > 0 {
-		_, _ = v.h.Write(p[:n])
+		_, err := v.h.Write(p[:n])
+		if err != nil {
+			return n, fmt.Errorf("hash write: %w", err)
+		}
 	}
 	if errors.Is(readErr, io.EOF) {
-		actual := digest.Digest(string(v.expected.Algorithm()) + ":" + hex.EncodeToString(v.h.Sum(nil)))
+		actual := digest.Digest(
+			string(v.expected.Algorithm()) + ":" + hex.EncodeToString(v.h.Sum(nil)),
+		)
 		if actual != v.expected {
 			return n, fmt.Errorf("%w: expected %s, got %s", ErrDigestMismatch, v.expected, actual)
 		}

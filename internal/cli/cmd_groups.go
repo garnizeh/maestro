@@ -17,63 +17,9 @@ func stubCmd(use, short string, aliases ...string) *cobra.Command {
 	}
 }
 
-// ── Container ────────────────────────────────────────────────────────────────
-
-func newContainerCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:     "container",
-		Short:   "Manage containers",
-		Aliases: []string{"c"},
-	}
-	cmd.AddCommand(
-		stubCmd("create", "Create a container without starting it"),
-		stubCmd("start", "Start one or more stopped containers"),
-		newContainerStopCmd(),
-		stubCmd("kill", "Kill one or more running containers"),
-		newContainerRmCmd(),
-		newContainerRunCmd(),
-		stubCmd("exec", "Run a command in a running container"),
-		newContainerLsCmd(),
-		stubCmd("inspect", "Display detailed container information"),
-		newContainerLogsCmd(),
-		stubCmd("stats", "Display resource usage statistics"),
-		stubCmd("pause", "Pause all processes in a container"),
-		stubCmd("unpause", "Resume all processes in a paused container"),
-		stubCmd("cp", "Copy files between host and container"),
-		stubCmd("rename", "Rename a container"),
-		stubCmd("wait", "Block until a container stops"),
-		stubCmd("top", "Display running processes in a container"),
-	)
-	return cmd
-}
-
-// ── Image ────────────────────────────────────────────────────────────────────
-
-func newImageCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:     "image",
-		Short:   "Manage images",
-		Aliases: []string{"i"},
-	}
-	cmd.AddCommand(
-		newPullCmd(),
-		stubCmd("push", "Push an image to a registry"),
-		newImageLsCmd(),
-		newImageInspectCmd(),
-		newImageHistoryCmd(),
-		newImageRmCmd(),
-		stubCmd("tag", "Create a tag pointing to an image"),
-		stubCmd("save", "Save image to a tar archive"),
-		stubCmd("load", "Load image from a tar archive"),
-		stubCmd("build", "Build an image from a Dockerfile"),
-		stubCmd("prune", "Remove unused images"),
-	)
-	return cmd
-}
-
 // ── Volume ───────────────────────────────────────────────────────────────────
 
-func newVolumeCmd() *cobra.Command {
+func newVolumeCmd(_ *Handler) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "volume",
 		Short: "Manage volumes",
@@ -90,14 +36,14 @@ func newVolumeCmd() *cobra.Command {
 
 // ── Network ──────────────────────────────────────────────────────────────────
 
-func newNetworkCmd() *cobra.Command {
+func newNetworkCmd(h *Handler) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "network",
 		Short:   "Manage networks",
 		Aliases: []string{"net"},
 	}
 	cmd.AddCommand(
-		stubCmd("create", "Create a network"),
+		newNetworkCreateCmd(h),
 		stubCmd("ls", "List networks", "list"),
 		stubCmd("rm", "Remove one or more networks"),
 		stubCmd("inspect", "Display detailed network information"),
@@ -108,9 +54,13 @@ func newNetworkCmd() *cobra.Command {
 	return cmd
 }
 
+func newNetworkCreateCmd(_ *Handler) *cobra.Command {
+	return stubCmd("create", "Create a network")
+}
+
 // ── Artifact ─────────────────────────────────────────────────────────────────
 
-func newArtifactCmd() *cobra.Command {
+func newArtifactCmd(_ *Handler) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "artifact",
 		Short: "Manage OCI artifacts (ORAS)",
@@ -127,14 +77,15 @@ func newArtifactCmd() *cobra.Command {
 
 // ── System ───────────────────────────────────────────────────────────────────
 
-func newSystemCmd() *cobra.Command {
+func newSystemCmd(h *Handler) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "system",
 		Short: "System-level operations and diagnostics",
 	}
 	cmd.AddCommand(
-		stubCmd("check", "Verify system prerequisites (runtime, rootless, networking)"),
-		stubCmd("info", "Display system-wide information"),
+		newSystemCheckCmd(h),
+		newSystemInfoCmd(h),
+		newSystemMonitorCmd(h),
 		stubCmd("events", "Monitor real-time system events"),
 		stubCmd("df", "Show disk usage for images, containers, volumes"),
 		stubCmd("prune", "Remove all unused resources"),
@@ -144,7 +95,7 @@ func newSystemCmd() *cobra.Command {
 
 // ── Service ──────────────────────────────────────────────────────────────────
 
-func newServiceCmd() *cobra.Command {
+func newServiceCmd(_ *Handler) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "service",
 		Short: "Manage systemd unit files for containers",

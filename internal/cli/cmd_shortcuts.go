@@ -7,16 +7,11 @@ import (
 // Top-level shortcuts that delegate to subcommand group implementations.
 // These mirror Docker's UX: `maestro run` === `maestro container run`.
 
-func newRunCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "run",
-		Short: "Create and start a container (shortcut for 'container run')",
-		RunE:  func(_ *cobra.Command, _ []string) error { return errNotImplemented },
-		// Flags will be added when container run is implemented (Milestone 1.3).
-	}
+func newRunCmd(h *Handler) *cobra.Command {
+	return newContainerRunCmd(h)
 }
 
-func newExecCmd() *cobra.Command {
+func newExecCmd(_ *Handler) *cobra.Command {
 	return &cobra.Command{
 		Use:   "exec",
 		Short: "Execute a command in a running container (shortcut for 'container exec')",
@@ -24,22 +19,30 @@ func newExecCmd() *cobra.Command {
 	}
 }
 
-func newPsCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "ps",
-		Short: "List containers (shortcut for 'container ls')",
-		RunE:  func(_ *cobra.Command, _ []string) error { return errNotImplemented },
-	}
+func newPsCmd(h *Handler) *cobra.Command {
+	return newContainerLsCmd(h)
 }
 
-func newPushCmd() *cobra.Command {
+func newLogsCmd(h *Handler) *cobra.Command {
+	return newContainerLogsCmd(h)
+}
+
+func newStopCmd(h *Handler) *cobra.Command {
+	return newContainerStopCmd(h)
+}
+
+func newRmCmd(h *Handler) *cobra.Command {
+	return newContainerRmCmd(h)
+}
+
+func newInspectCmd(h *Handler) *cobra.Command {
+	return newContainerInspectCmd(h)
+}
+
+func newPushCmd(_ *Handler) *cobra.Command {
 	return &cobra.Command{
 		Use:   "push",
 		Short: "Push an image to a registry (shortcut for 'image push')",
 		RunE:  func(_ *cobra.Command, _ []string) error { return errNotImplemented },
 	}
-}
-
-func newImagesCmd() *cobra.Command {
-	return newImagesShortcut()
 }

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"slices"
 	"time"
+
+	"github.com/rs/zerolog/log"
 )
 
 // ErrContainerNotFound is returned when a container ID is not in the store.
@@ -36,12 +38,15 @@ const (
 	KaDeleted
 )
 
+const statusCreated = "created"
+
 // String returns the human-readable Ka state name.
 func (k Ka) String() string {
 	switch k {
 	case KaCreated:
-		return "created"
+		return statusCreated
 	case KaRunning:
+
 		return "running"
 	case KaStopped:
 		return "stopped"
@@ -59,10 +64,11 @@ func (k Ka) MarshalText() ([]byte, error) {
 
 // UnmarshalText implements [encoding.TextUnmarshaler] for JSON deserialisation.
 func (k *Ka) UnmarshalText(text []byte) error {
-	switch string(text) {
-	case "created":
+	switch s := string(text); s {
+	case statusCreated:
 		*k = KaCreated
 	case "running":
+
 		*k = KaRunning
 	case "stopped":
 		*k = KaStopped
@@ -122,6 +128,12 @@ type Container struct {
 	Finished *time.Time `json:"finished,omitempty"`
 	// Labels are arbitrary key-value string annotations.
 	Labels map[string]string `json:"labels,omitempty"`
+	// Ports contains the raw string port mappings configured for this container.
+	Ports []string `json:"ports,omitempty"`
+	// NetNSPath is the persistent network namespace created by Beam.
+	NetNSPath string `json:"netnsPath,omitempty"`
+	// LauncherPath is the control socket for the rootless holder process.
+	LauncherPath string `json:"launcherPath,omitempty"`
 }
 
 // Summary is a lightweight view of a container for the ps command.
@@ -170,8 +182,7 @@ func NewManager(store Store, root string) *Manager {
 
 // LoadContainer retrieves a container's state by ID.
 // Returns ErrContainerNotFound if no container with that ID exists.
-func (m *Manager) LoadContainer(ctx context.Context, id string) (*Container, error) {
-	_ = ctx
+func (m *Manager) LoadContainer(_ context.Context, id string) (*Container, error) {
 	var c Container
 	if err := m.store.Get(containersCollection, id, &c); err != nil {
 		if isNotFound(err) {
@@ -183,8 +194,7 @@ func (m *Manager) LoadContainer(ctx context.Context, id string) (*Container, err
 }
 
 // SaveContainer persists a container's state.
-func (m *Manager) SaveContainer(ctx context.Context, c *Container) error {
-	_ = ctx
+func (m *Manager) SaveContainer(_ context.Context, c *Container) error {
 	if err := m.store.Put(containersCollection, c.ID, c); err != nil {
 		return fmt.Errorf("gan: save container %s: %w", c.ID, err)
 	}
@@ -192,8 +202,7 @@ func (m *Manager) SaveContainer(ctx context.Context, c *Container) error {
 }
 
 // DeleteContainer removes a container's state record.
-func (m *Manager) DeleteContainer(ctx context.Context, id string) error {
-	_ = ctx
+func (m *Manager) DeleteContainer(_ context.Context, id string) error {
 	if err := m.store.Delete(containersCollection, id); err != nil {
 		if isNotFound(err) {
 			return fmt.Errorf("%w: %s", ErrContainerNotFound, id)
@@ -205,7 +214,6 @@ func (m *Manager) DeleteContainer(ctx context.Context, id string) error {
 
 // ListContainers returns all containers in insertion order.
 func (m *Manager) ListContainers(ctx context.Context) ([]*Container, error) {
-	_ = ctx
 	keys, err := m.store.List(containersCollection)
 	if err != nil {
 		return nil, fmt.Errorf("gan: list containers: %w", err)
@@ -235,6 +243,7 @@ func (m *Manager) Transition(ctx context.Context, id string, next Ka) (*Containe
 	}
 
 	c.Ka = next
+	log.Debug().Str("id", id).Str("next", next.String()).Msg("gan: transition: state updated")
 	if saveErr := m.SaveContainer(ctx, c); saveErr != nil {
 		return nil, saveErr
 	}
@@ -250,9 +259,11 @@ func (m *Manager) FindByName(_ context.Context, name string) (*Container, error)
 	}
 	for _, c := range ctrs {
 		if c.Name == name {
+			log.Debug().Str("name", name).Str("id", c.ID).Msg("gan: findByName: match found")
 			return c, nil
 		}
 	}
+	log.Debug().Str("name", name).Msg("gan: findByName: no match")
 	return nil, nil //nolint:nilnil // returning nil for "not found" is the intended API here
 }
 

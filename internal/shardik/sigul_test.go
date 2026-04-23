@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/internal/shardik"
-	"github.com/rodrigo-baliza/maestro/test/testutil"
+	"github.com/garnizeh/maestro/internal/shardik"
+	"github.com/garnizeh/maestro/test/testutil"
 )
 
 // ── Task #24 — Sigul credential chain ────────────────────────────────────────
@@ -25,7 +25,7 @@ func TestSigul_CLIFlagsTakePriority(t *testing.T) {
 
 	// Verify the keychain resolves without error (doesn't test auth itself,
 	// because test registry accepts anything).
-	_ = kc
+	t.Logf("Keychain: %v", kc)
 }
 
 func TestSigul_EnvTokenOverridesFile(t *testing.T) {
@@ -41,9 +41,12 @@ func TestSigul_EnvTokenOverridesFile(t *testing.T) {
 			},
 		},
 	}
-	data, _ := json.Marshal(af)
-	if err := os.WriteFile(authPath, data, 0o600); err != nil {
-		t.Fatal(err)
+	data, err := json.Marshal(af)
+	if err != nil {
+		t.Fatalf("failed to marshal auth file: %v", err)
+	}
+	if writeErr := os.WriteFile(authPath, data, 0o600); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 
 	// Set env token.
@@ -72,9 +75,12 @@ func TestSigul_AuthFileUsedBeforeDockerConfig(t *testing.T) {
 			},
 		},
 	}
-	data, _ := json.Marshal(af)
-	if err := os.WriteFile(authPath, data, 0o600); err != nil {
-		t.Fatal(err)
+	data, err := json.Marshal(af)
+	if err != nil {
+		t.Fatalf("failed to marshal auth file: %v", err)
+	}
+	if writeErr := os.WriteFile(authPath, data, 0o600); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 
 	kc := shardik.NewSigulKeychain(shardik.SigulConfig{AuthFilePath: authPath})
@@ -111,7 +117,12 @@ func TestSigul_SaveAndRemoveCredentials(t *testing.T) {
 	dir := t.TempDir()
 	authPath := filepath.Join(dir, "auth.json")
 
-	if err := shardik.SaveCredentials("docker.io", "user1", "pass1", authPath); err != nil {
+	if err := shardik.SaveCredentials(
+		"docker.io",
+		"user1",
+		"pass1",
+		shardik.SigulConfig{AuthFilePath: authPath},
+	); err != nil {
 		t.Fatalf("SaveCredentials: %v", err)
 	}
 
@@ -125,20 +136,32 @@ func TestSigul_SaveAndRemoveCredentials(t *testing.T) {
 	}
 
 	// Verify content.
-	data, _ := os.ReadFile(authPath)
+	data, err := os.ReadFile(authPath)
+	if err != nil {
+		t.Fatalf("failed to read auth file: %v", err)
+	}
 	if string(data) == "" {
 		t.Error("auth file is empty")
 	}
 
 	// Remove and verify gone.
-	if removeErr := shardik.RemoveCredentials("docker.io", authPath); removeErr != nil {
+	if removeErr := shardik.RemoveCredentials(
+		"docker.io",
+		shardik.SigulConfig{AuthFilePath: authPath},
+	); removeErr != nil {
 		t.Fatalf("RemoveCredentials: %v", removeErr)
 	}
-	data, _ = os.ReadFile(authPath)
+	data, err = os.ReadFile(authPath)
+	if err != nil {
+		t.Fatalf("failed to read auth file: %v", err)
+	}
 	var af struct {
 		Auths map[string]any `json:"auths"`
 	}
-	_ = json.Unmarshal(data, &af)
+	err = json.Unmarshal(data, &af)
+	if err != nil {
+		t.Fatalf("failed to unmarshal auth file: %v", err)
+	}
 	if _, ok := af.Auths["docker.io"]; ok {
 		t.Error("credential still present after removal")
 	}
@@ -148,21 +171,27 @@ func TestSigul_SaveCredentials_IdempotentOnSecondWrite(t *testing.T) {
 	dir := t.TempDir()
 	authPath := filepath.Join(dir, "auth.json")
 
-	if err := shardik.SaveCredentials("ghcr.io", "u", "p1", authPath); err != nil {
+	if err := shardik.SaveCredentials("ghcr.io", "u", "p1", shardik.SigulConfig{AuthFilePath: authPath}); err != nil {
 		t.Fatalf("first save: %v", err)
 	}
-	if err := shardik.SaveCredentials("ghcr.io", "u", "p2", authPath); err != nil {
+	if err := shardik.SaveCredentials("ghcr.io", "u", "p2", shardik.SigulConfig{AuthFilePath: authPath}); err != nil {
 		t.Fatalf("second save: %v", err)
 	}
-	if err := shardik.SaveCredentials("docker.io", "v", "q", authPath); err != nil {
+	if err := shardik.SaveCredentials("docker.io", "v", "q", shardik.SigulConfig{AuthFilePath: authPath}); err != nil {
 		t.Fatalf("third save: %v", err)
 	}
 
-	data, _ := os.ReadFile(authPath)
+	data, err := os.ReadFile(authPath)
+	if err != nil {
+		t.Fatalf("failed to read auth file: %v", err)
+	}
 	var af struct {
 		Auths map[string]any `json:"auths"`
 	}
-	_ = json.Unmarshal(data, &af)
+	err = json.Unmarshal(data, &af)
+	if err != nil {
+		t.Fatalf("failed to unmarshal auth file: %v", err)
+	}
 	if len(af.Auths) != 2 {
 		t.Errorf("expected 2 entries, got %d", len(af.Auths))
 	}
@@ -173,7 +202,7 @@ func TestSigul_RemoveCredentials_NonExistentFile(t *testing.T) {
 	authPath := filepath.Join(dir, "nonexistent.json")
 
 	// Should not error when the file doesn't exist.
-	if err := shardik.RemoveCredentials("docker.io", authPath); err != nil {
+	if err := shardik.RemoveCredentials("docker.io", shardik.SigulConfig{AuthFilePath: authPath}); err != nil {
 		t.Errorf("RemoveCredentials on missing file: %v", err)
 	}
 }
@@ -186,7 +215,7 @@ func TestSigul_RemoveCredentials_InvalidJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := shardik.RemoveCredentials("docker.io", authPath); err == nil {
+	if err := shardik.RemoveCredentials("docker.io", shardik.SigulConfig{AuthFilePath: authPath}); err == nil {
 		t.Error("expected error for invalid JSON file")
 	}
 }
@@ -202,9 +231,12 @@ func TestSigul_Resolve_TokenEntry(t *testing.T) {
 			},
 		},
 	}
-	data, _ := json.Marshal(af)
-	if err := os.WriteFile(authPath, data, 0o600); err != nil {
-		t.Fatal(err)
+	data, err := json.Marshal(af)
+	if err != nil {
+		t.Fatalf("failed to marshal auth file: %v", err)
+	}
+	if writeErr := os.WriteFile(authPath, data, 0o600); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 
 	kc := shardik.NewSigulKeychain(shardik.SigulConfig{AuthFilePath: authPath})
@@ -221,9 +253,12 @@ func TestSigul_Resolve_AnonymousWhenNoCreds(t *testing.T) {
 	af := map[string]any{
 		"auths": map[string]any{},
 	}
-	data, _ := json.Marshal(af)
-	if err := os.WriteFile(authPath, data, 0o600); err != nil {
-		t.Fatal(err)
+	data, err := json.Marshal(af)
+	if err != nil {
+		t.Fatalf("failed to marshal auth file: %v", err)
+	}
+	if writeErr := os.WriteFile(authPath, data, 0o600); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 
 	// No env token, no CLI flags → falls to docker keychain → anonymous.
@@ -240,7 +275,7 @@ func TestSigul_AuthFilePath_DefaultUsed(t *testing.T) {
 	t.Setenv("HOME", dir)
 
 	// With default path (empty override), SaveCredentials derives ~/.config/maestro/auth.json.
-	if err := shardik.SaveCredentials("test.io", "u", "p", ""); err != nil {
+	if err := shardik.SaveCredentials("test.io", "u", "p", shardik.SigulConfig{}); err != nil {
 		t.Fatalf("SaveCredentials with default path: %v", err)
 	}
 	expected := filepath.Join(dir, ".config", "maestro", "auth.json")
@@ -261,9 +296,12 @@ func TestSigul_ResolveFromAuthFile_PermissionWarning(t *testing.T) {
 			},
 		},
 	}
-	data, _ := json.Marshal(af)
-	if err := os.WriteFile(authPath, data, 0o644); err != nil {
-		t.Fatal(err)
+	data, err := json.Marshal(af)
+	if err != nil {
+		t.Fatalf("failed to marshal auth file: %v", err)
+	}
+	if writeErr := os.WriteFile(authPath, data, 0o644); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 
 	// The keychain should still resolve (warning is printed to stderr, not an error).
@@ -286,9 +324,12 @@ func TestSigul_Resolve_BareHostMatch(t *testing.T) {
 			},
 		},
 	}
-	data, _ := json.Marshal(af)
-	if err := os.WriteFile(authPath, data, 0o600); err != nil {
-		t.Fatal(err)
+	data, err := json.Marshal(af)
+	if err != nil {
+		t.Fatalf("failed to marshal auth file: %v", err)
+	}
+	if writeErr := os.WriteFile(authPath, data, 0o600); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 
 	kc := shardik.NewSigulKeychain(shardik.SigulConfig{AuthFilePath: authPath})

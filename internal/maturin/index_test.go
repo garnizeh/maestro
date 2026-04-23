@@ -13,7 +13,7 @@ import (
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 
-	"github.com/rodrigo-baliza/maestro/internal/maturin"
+	"github.com/garnizeh/maestro/internal/maturin"
 )
 
 // testDescriptor builds a v1.Descriptor for testing.
@@ -407,13 +407,19 @@ func holdIndexLock(t *testing.T, root string) (release func()) {
 	}
 
 	if flockErr := syscall.Flock(int(lf.Fd()), syscall.LOCK_EX); flockErr != nil {
-		_ = lf.Close()
+		if closeErr := lf.Close(); closeErr != nil {
+			t.Fatalf("holdIndexLock Close: %v", closeErr)
+		}
 		t.Fatalf("holdIndexLock Flock: %v", flockErr)
 	}
 
 	return func() {
-		_ = syscall.Flock(int(lf.Fd()), syscall.LOCK_UN)
-		_ = lf.Close()
+		if unlockErr := syscall.Flock(int(lf.Fd()), syscall.LOCK_UN); unlockErr != nil {
+			t.Fatalf("holdIndexLock Unlock: %v", unlockErr)
+		}
+		if closeErr := lf.Close(); closeErr != nil {
+			t.Fatalf("holdIndexLock Close: %v", closeErr)
+		}
 	}
 }
 

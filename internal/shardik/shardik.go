@@ -121,14 +121,21 @@ func (c *Client) GetIndex(ctx context.Context, refStr string) (v1.ImageIndex, er
 
 // GetBlob fetches a blob by its digest from the given repository.
 // The caller is responsible for closing the returned [io.ReadCloser].
-func (c *Client) GetBlob(ctx context.Context, repoStr string, digest v1.Hash) (io.ReadCloser, error) {
+func (c *Client) GetBlob(
+	ctx context.Context,
+	repoStr string,
+	digest v1.Hash,
+) (io.ReadCloser, error) {
 	repo, err := name.NewRepository(repoStr)
 	if err != nil {
 		return nil, fmt.Errorf("parse repository %q: %w", repoStr, err)
 	}
 
 	// remote.Layer is lazy — it never makes HTTP requests here; errors surface in Compressed().
-	layer, _ := remote.Layer(repo.Digest(digest.String()), c.remoteOptions(ctx)...)
+	layer, errLayer := remote.Layer(repo.Digest(digest.String()), c.remoteOptions(ctx)...)
+	if errLayer != nil {
+		return nil, fmt.Errorf("prepare blob %s: %w", digest, errLayer)
+	}
 
 	rc, err := layer.Compressed()
 	if err != nil {
@@ -180,7 +187,7 @@ var ErrNotFound = errors.New("not found")
 // isNotFound checks whether a registry error represents a 404.
 func isNotFound(err error) bool {
 	var terr *transport.Error
-	if As(err, &terr) {
+	if errors.As(err, &terr) {
 		for _, e := range terr.Errors {
 			if e.Code == transport.UnauthorizedErrorCode {
 				return false

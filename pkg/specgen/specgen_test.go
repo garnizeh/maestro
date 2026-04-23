@@ -9,7 +9,7 @@ import (
 
 	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
 
-	"github.com/rodrigo-baliza/maestro/pkg/specgen"
+	"github.com/garnizeh/maestro/pkg/specgen"
 )
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -316,10 +316,13 @@ func TestGenerate_NetworkPrivate(t *testing.T) {
 
 func TestWrite_Success(t *testing.T) {
 	dir := t.TempDir()
-	sp, _ := specgen.Generate(imagespec.ImageConfig{}, baseOpts(t))
+	sp, err := specgen.Generate(imagespec.ImageConfig{}, baseOpts(t))
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
 
-	if err := specgen.Write(dir, sp); err != nil {
-		t.Fatalf("Write: %v", err)
+	if writeErr := specgen.Write(dir, sp); writeErr != nil {
+		t.Fatalf("Write: %v", writeErr)
 	}
 
 	data, readErr := os.ReadFile(filepath.Join(dir, "config.json"))
@@ -337,8 +340,11 @@ func TestWrite_Success(t *testing.T) {
 }
 
 func TestWrite_InvalidDir(t *testing.T) {
-	sp, _ := specgen.Generate(imagespec.ImageConfig{}, baseOpts(t))
-	err := specgen.Write("/nonexistent/path/that/does/not/exist", sp)
+	sp, err := specgen.Generate(imagespec.ImageConfig{}, baseOpts(t))
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	err = specgen.Write("/nonexistent/path/that/does/not/exist", sp)
 	if err == nil {
 		t.Fatal("expected error for invalid dir")
 	}

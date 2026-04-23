@@ -11,7 +11,7 @@ import (
 
 	"github.com/opencontainers/go-digest"
 
-	"github.com/rodrigo-baliza/maestro/internal/maturin"
+	"github.com/garnizeh/maestro/internal/maturin"
 )
 
 // newTestStore returns a Store backed by a temporary directory.
@@ -267,7 +267,11 @@ func TestStore_Put_CreateTempError(t *testing.T) {
 	if err := os.Chmod(blobDir, 0o555); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(blobDir, 0o700) })
+	t.Cleanup(func() {
+		if err := os.Chmod(blobDir, 0o700); err != nil {
+			t.Fatalf("failed to restore permissions: %v", err)
+		}
+	})
 
 	err := s.Put(dgst, bytes.NewReader(content))
 	if err == nil {

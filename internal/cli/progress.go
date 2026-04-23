@@ -8,7 +8,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/rodrigo-baliza/maestro/internal/maturin"
+	"github.com/garnizeh/maestro/internal/maturin"
 )
 
 // pullProgress accumulates per-layer events and renders them with lipgloss.
@@ -40,14 +40,22 @@ func (p *pullProgress) OnLayerDone(ev maturin.LayerEvent) {
 
 	if ev.Skipped {
 		p.skipped++
-		line := p.r.NewStyle().Faint(true).Render(fmt.Sprintf("  layer %s: already present", ev.Digest))
-		_, _ = fmt.Fprintln(p.w, line)
+		line := p.r.NewStyle().
+			Faint(true).
+			Render(fmt.Sprintf("  layer %s: already present", ev.Digest))
+		_, err := fmt.Fprintln(p.w, line)
+		if err != nil {
+			return
+		}
 	} else {
 		p.pulled++
 		p.bytes += ev.Size
 		line := p.r.NewStyle().Foreground(lipgloss.Color("2")).
 			Render(fmt.Sprintf("  layer %s: pulled %s", ev.Digest, formatBytes(ev.Size)))
-		_, _ = fmt.Fprintln(p.w, line)
+		_, err := fmt.Fprintln(p.w, line)
+		if err != nil {
+			return
+		}
 	}
 }
 
@@ -61,7 +69,10 @@ func (p *pullProgress) Summary(refStr string) {
 		"%s: Pull complete — %d layer(s) pulled, %d cached, %s in %s",
 		refStr, p.pulled, p.skipped, formatBytes(p.bytes), elapsed,
 	)
-	_, _ = fmt.Fprintln(p.w, p.r.NewStyle().Bold(true).Render(msg))
+	_, err := fmt.Fprintln(p.w, p.r.NewStyle().Bold(true).Render(msg))
+	if err != nil {
+		return
+	}
 }
 
 // formatBytes converts b bytes to a human-readable string (e.g. "1.4 MB").

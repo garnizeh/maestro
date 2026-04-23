@@ -1,6 +1,7 @@
 package shardik
 
 import (
+	"context"
 	"errors"
 	"math"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/rs/zerolog/log"
 )
 
 // Circuit breaker states.
@@ -86,43 +88,65 @@ func (h *Horn) RoundTrip(req *http.Request) (*http.Response, error) {
 		err  error
 	)
 	for attempt := 0; attempt <= h.cfg.MaxRetries; attempt++ {
-		if attempt > 0 {
-			delay := h.backoff(attempt)
-			select {
-			case <-req.Context().Done():
-				return nil, req.Context().Err()
-			case <-time.After(delay):
-			}
+		if errWait := h.waitBackoff(req.Context(), attempt); errWait != nil {
+			return nil, errWait
 		}
 
-		// Clone the request body for retries.
-		cloned := req.Clone(req.Context())
-		resp, err = h.inner.RoundTrip(cloned)
+		resp, err = h.doRoundTrip(req)
+		if err != nil {
+			continue
+		}
 
-		if err == nil {
-			if isRetryableStatus(resp.StatusCode) {
-				// Retryable 5xx / 429 / 408 — close body and loop.
-				_ = resp.Body.Close()
-				h.recordFailure()
-				continue
-			}
-			// 4xx client errors: return immediately without retrying.
-			if resp.StatusCode >= 400 && resp.StatusCode < 500 {
-				h.recordFailure()
-				return resp, nil
-			}
-			// 2xx / 3xx — success.
-			h.recordSuccess()
+		if !h.handleResponse(resp) {
 			return resp, nil
 		}
-
-		h.recordFailure()
 	}
 
 	if err != nil {
 		return nil, err
 	}
 	return resp, nil
+}
+
+func (h *Horn) waitBackoff(ctx context.Context, attempt int) error {
+	if attempt == 0 {
+		return nil
+	}
+	delay := h.backoff(attempt)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(delay):
+		return nil
+	}
+}
+
+func (h *Horn) doRoundTrip(req *http.Request) (*http.Response, error) {
+	cloned := req.Clone(req.Context())
+	resp, err := h.inner.RoundTrip(cloned)
+	if err != nil {
+		h.recordFailure()
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (h *Horn) handleResponse(resp *http.Response) bool {
+	if isRetryableStatus(resp.StatusCode) {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			log.Error().Err(closeErr).Msg("failed to close response body")
+		}
+		h.recordFailure()
+		return true
+	}
+
+	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+		h.recordFailure()
+		return false
+	}
+
+	h.recordSuccess()
+	return false
 }
 
 // checkBreaker returns an error if the circuit is open.
@@ -155,7 +179,7 @@ func (h *Horn) recordFailure() {
 	h.fails++
 	if h.fails >= h.cfg.FailureThreshold && h.state == stateClosed {
 		h.state = stateOpen
-		h.openAt = time.Now()
+		h.openAt = time.Now().UTC()
 	}
 }
 

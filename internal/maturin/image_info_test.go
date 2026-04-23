@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/internal/maturin"
+	"github.com/garnizeh/maestro/internal/maturin"
 )
 
 // ── ListImages ────────────────────────────────────────────────────────────────
@@ -215,14 +215,17 @@ func TestStore_RemoveImage_DigestRefUnsupported(t *testing.T) {
 	s := newTestStore(t)
 	img := randomImage(t, 1)
 
-	imgDigest, _ := img.Digest()
+	imgDigest, err := img.Digest()
+	if err != nil {
+		t.Fatalf("failed to get image digest: %v", err)
+	}
 	refStr := "nginx@" + imgDigest.String()
 
-	if err := s.Draw(context.Background(), imageClient(img), refStr, maturin.DrawOptions{}); err != nil {
-		t.Fatalf("Draw: %v", err)
+	if drawErr := s.Draw(context.Background(), imageClient(img), refStr, maturin.DrawOptions{}); drawErr != nil {
+		t.Fatalf("Draw: %v", drawErr)
 	}
 
-	err := s.RemoveImage(context.Background(), refStr)
+	err = s.RemoveImage(context.Background(), refStr)
 	if err == nil {
 		t.Fatal("expected error for digest reference, got nil")
 	}
@@ -235,14 +238,17 @@ func TestStore_InspectImage_DigestRefUnsupported(t *testing.T) {
 	s := newTestStore(t)
 	img := randomImage(t, 1)
 
-	imgDigest, _ := img.Digest()
+	imgDigest, err := img.Digest()
+	if err != nil {
+		t.Fatalf("failed to get image digest: %v", err)
+	}
 	refStr := "nginx@" + imgDigest.String()
 
-	if err := s.Draw(context.Background(), imageClient(img), refStr, maturin.DrawOptions{}); err != nil {
-		t.Fatalf("Draw: %v", err)
+	if drawErr := s.Draw(context.Background(), imageClient(img), refStr, maturin.DrawOptions{}); drawErr != nil {
+		t.Fatalf("Draw: %v", drawErr)
 	}
 
-	_, err := s.InspectImage(refStr)
+	_, err = s.InspectImage(refStr)
 	if err == nil {
 		t.Fatal("expected error for digest reference, got nil")
 	}

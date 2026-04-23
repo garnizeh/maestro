@@ -12,6 +12,7 @@ package eld
 import (
 	"context"
 	"errors"
+	"io"
 	"syscall"
 	"time"
 )
@@ -70,8 +71,20 @@ type Features struct {
 type CreateOpts struct {
 	// NoPivot disables pivot_root (used in certain rootless environments).
 	NoPivot bool
+	// Stdout is where the container's stdout is redirected.
+	Stdout io.Writer
+	// Stderr is where the container's stderr is redirected.
+	Stderr io.Writer
 	// ExtraArgs are additional runtime-specific arguments.
 	ExtraArgs []string
+	// LauncherPath is the absolute path to a namespace holder (e.g. for rootless).
+	LauncherPath string
+}
+
+// StartOpts carries options for the Start operation.
+type StartOpts struct {
+	// LauncherPath is the absolute path to a namespace holder (e.g. for rootless).
+	LauncherPath string
 }
 
 // DeleteOpts carries options for the Delete operation.
@@ -90,7 +103,7 @@ type Eld interface {
 
 	// Start begins the user-specified process in a previously created container.
 	// The container transitions from "created" to "running".
-	Start(ctx context.Context, id string) error
+	Start(ctx context.Context, id string, opts *StartOpts) error
 
 	// Kill sends signal to the container's init process (Roland fires).
 	Kill(ctx context.Context, id string, signal syscall.Signal) error
@@ -110,12 +123,9 @@ type Eld interface {
 
 // RuntimeInfo holds information about a discovered OCI runtime.
 type RuntimeInfo struct {
-	// Name is the short runtime name (e.g., "crun", "runc").
-	Name string
-	// Path is the absolute path to the runtime binary.
-	Path string
-	// Version is the version string reported by the runtime.
-	Version string
+	Name    string `json:"name"`
+	Path    string `json:"path"`
+	Version string `json:"version"`
 }
 
 // MonitorConfig configures the native Go container monitor.
@@ -132,6 +142,12 @@ type MonitorConfig struct {
 	ExitFile string
 	// Detach indicates whether the monitor should detach from the CLI terminal.
 	Detach bool
+	// Stdout is an optional writer where the container's stdout will be streamed in real-time.
+	Stdout io.Writer
+	// Stderr is an optional writer where the container's stderr will be streamed in real-time.
+	Stderr io.Writer
 	// Timeout is the maximum time to wait for the container to start.
 	Timeout time.Duration
+	// LauncherPath is the absolute path to a namespace holder (e.g. for rootless).
+	LauncherPath string
 }

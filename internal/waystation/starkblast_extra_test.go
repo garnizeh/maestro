@@ -3,7 +3,7 @@ package waystation_test
 import (
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/internal/waystation"
+	"github.com/garnizeh/maestro/internal/waystation"
 )
 
 func TestCheckAndMigrate_FutureVersion(t *testing.T) {
@@ -13,7 +13,9 @@ func TestCheckAndMigrate_FutureVersion(t *testing.T) {
 	type fakeMeta struct {
 		Version int `json:"version"`
 	}
-	_ = s.Put("meta", "schema", fakeMeta{Version: waystation.CurrentSchemaVersion + 99})
+	if err := s.Put("meta", "schema", fakeMeta{Version: waystation.CurrentSchemaVersion + 99}); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
 
 	err := s.CheckAndMigrate()
 	if err == nil {

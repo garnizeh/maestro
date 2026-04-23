@@ -4,15 +4,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 
 	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/rs/zerolog/log"
+
+	"github.com/garnizeh/maestro/internal/white"
 )
 
 const (
 	// filePerm is the default permission for the config.json file.
 	filePerm = 0o600
+	// rlimitNofileDefault is the standard file descriptor limit for containers.
+	rlimitNofileDefault = 1024
 )
 
 // Opts holds user-facing container parameters that override image defaults.
@@ -45,6 +51,22 @@ type Opts struct {
 	// NetworkMode is the desired network namespace ("none", "host", or "private").
 	// Defaults to "private" if empty.
 	NetworkMode string
+	// NetNSPath is the absolute path to a pre-created network namespace.
+	NetNSPath string
+	// UserNSPath is the absolute path to a pre-created user namespace.
+	UserNSPath string
+	// MntNSPath is the absolute path to a pre-created mount namespace.
+	MntNSPath string
+	// InsideUserNS indicates that the OCI runtime will be executed from inside an
+	// existing user namespace (e.g. the rootless netns holder process). In this
+	// case the runtime must NOT try to setns into the holder's user namespace
+	// (which would return EINVAL) but should instead create a new child user
+	// namespace, using holder-relative UID/GID mappings (0→0).
+	InsideUserNS bool
+	// Seccomp is the seccomp configuration to apply.
+	Seccomp *white.Seccomp
+	// Mounts are additional container mount points.
+	Mounts []SpecMount
 }
 
 // Spec is a minimal OCI Runtime Spec document sufficient for container execution.
@@ -61,6 +83,8 @@ type Spec struct {
 	Hostname string `json:"hostname"`
 	// Linux holds the Linux-specific portion of the OCI spec.
 	Linux LinuxSpec `json:"linux"`
+	// Mounts defines the container's mount points.
+	Mounts []SpecMount `json:"mounts"`
 }
 
 // SpecRoot defines the container's root filesystem.
@@ -69,6 +93,14 @@ type SpecRoot struct {
 	Path string `json:"path"`
 	// Readonly indicates whether the rootfs is read-only.
 	Readonly bool `json:"readonly"`
+}
+
+// SpecMount defines a mount point for the container.
+type SpecMount struct {
+	Destination string   `json:"destination"`
+	Type        string   `json:"type"`
+	Source      string   `json:"source"`
+	Options     []string `json:"options,omitempty"`
 }
 
 // Process defines the container's primary process.
@@ -117,6 +149,19 @@ type LinuxCaps struct {
 	Ambient []string `json:"ambient,omitempty"`
 }
 
+// LinuxSeccomp represents the seccomp configuration.
+type LinuxSeccomp struct {
+	DefaultAction string           `json:"defaultAction"`
+	Architectures []string         `json:"architectures,omitempty"`
+	Syscalls      []SeccompSyscall `json:"syscalls,omitempty"`
+}
+
+// SeccompSyscall represents a syscall and its action in the seccomp filter.
+type SeccompSyscall struct {
+	Names  []string `json:"names"`
+	Action string   `json:"action"`
+}
+
 // ProcessRlimit is a resource limit for the container process.
 type ProcessRlimit struct {
 	// Type is the resource limit type (e.g. RLIMIT_NOFILE).
@@ -151,6 +196,10 @@ type LinuxSpec struct {
 	MaskedPaths []string `json:"maskedPaths,omitempty"`
 	// ReadonlyPaths is the list of paths to make read-only.
 	ReadonlyPaths []string `json:"readonlyPaths,omitempty"`
+	// RootfsPropagation sets the propagation type for the container rootfs mount.
+	// Use "slave" for rootless containers to avoid EPERM when crun tries to
+	// remount "/" as private inside a user namespace it does not own.
+	RootfsPropagation string `json:"rootfsPropagation,omitempty"`
 }
 
 // LinuxNamespace is an OCI Linux namespace entry.
@@ -169,12 +218,6 @@ type LinuxIDMapping struct {
 	HostID uint32 `json:"hostID"`
 	// Size is the size of the mapping range.
 	Size uint32 `json:"size"`
-}
-
-// LinuxSeccomp is a minimal seccomp configuration.
-type LinuxSeccomp struct {
-	// DefaultAction is the default action for the seccomp filter.
-	DefaultAction string `json:"defaultAction"`
 }
 
 // LinuxResources describes cgroup resource limits.
@@ -198,6 +241,8 @@ var defaultCaps = []string{ //nolint:gochecknoglobals // OCI default set
 }
 
 // Generate produces an OCI Runtime Spec from image configuration and user opts.
+//
+//nolint:funlen // complex OCI spec generation orchestration
 func Generate(imgCfg imagespec.ImageConfig, opts Opts) (*Spec, error) {
 	// ── Process args ──────────────────────────────────────────────────────────
 	entrypoint := imgCfg.Entrypoint
@@ -209,6 +254,7 @@ func Generate(imgCfg imagespec.ImageConfig, opts Opts) (*Spec, error) {
 		cmd = opts.Cmd
 	}
 	args := append(entrypoint, cmd...) //nolint:gocritic // append is safe for small lists
+	log.Debug().Strs("args", args).Msg("specgen: resolved container command")
 
 	// ── Environment variables ─────────────────────────────────────────────────
 	envMap := make(map[string]string)
@@ -221,6 +267,9 @@ func Generate(imgCfg imagespec.ImageConfig, opts Opts) (*Spec, error) {
 		envMap[k] = v
 	}
 	var env []string
+	if _, ok := envMap["PATH"]; !ok {
+		env = append(env, "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+	}
 	for k, v := range envMap {
 		env = append(env, k+"="+v)
 	}
@@ -247,10 +296,12 @@ func Generate(imgCfg imagespec.ImageConfig, opts Opts) (*Spec, error) {
 	caps := buildCaps(opts.CapAdd, opts.CapDrop)
 
 	// ── Linux namespaces ──────────────────────────────────────────────────────
-	namespaces := buildNamespaces(opts.NetworkMode, opts.Rootless)
+	namespaces := buildNamespaces(opts.NetworkMode, opts.NetNSPath, opts.UserNSPath,
+		opts.MntNSPath, opts.Rootless, opts.InsideUserNS)
 
 	// ── User/group ID mappings (rootless) ─────────────────────────────────────
-	uid, uidMappings, gidMappings := buildUserMappings(imgCfg.User, opts.User, opts.Rootless)
+	uid, uidMappings, gidMappings := buildUserMappings(imgCfg.User, opts.User,
+		opts.UserNSPath, opts.Rootless, opts.InsideUserNS)
 
 	// ── Rootfs ────────────────────────────────────────────────────────────────
 	rootfs := opts.RootFS
@@ -275,14 +326,20 @@ func Generate(imgCfg imagespec.ImageConfig, opts Opts) (*Spec, error) {
 			Capabilities:    caps,
 			NoNewPrivileges: true,
 			Rlimits: []ProcessRlimit{
-				{Type: "RLIMIT_NOFILE", Hard: 1024, Soft: 1024}, //nolint:mnd // standard file descriptor limits
+				{
+					Type: "RLIMIT_NOFILE",
+					Hard: rlimitNofileDefault,
+					Soft: rlimitNofileDefault,
+				},
 			},
 		},
 		Hostname: hostname,
 		Linux: LinuxSpec{
-			Namespaces:  namespaces,
-			UIDMappings: uidMappings,
-			GIDMappings: gidMappings,
+			Namespaces:        namespaces,
+			UIDMappings:       uidMappings,
+			GIDMappings:       gidMappings,
+			Seccomp:           buildSeccomp(opts.Seccomp),
+			RootfsPropagation: buildRootfsPropagation(opts.Rootless),
 			MaskedPaths: []string{
 				"/proc/acpi", "/proc/kcore", "/proc/keys",
 				"/proc/latency_stats", "/proc/timer_list",
@@ -294,7 +351,54 @@ func Generate(imgCfg imagespec.ImageConfig, opts Opts) (*Spec, error) {
 				"/proc/sys", "/proc/sysrq-trigger",
 			},
 		},
+		Mounts: []SpecMount{
+			{Destination: "/proc", Type: "proc", Source: "proc"},
+			{
+				Destination: "/dev",
+				Type:        "tmpfs",
+				Source:      "tmpfs",
+				Options:     []string{"nosuid", "strictatime", "mode=755", "size=65536k"},
+			},
+			{
+				Destination: "/dev/pts",
+				Type:        "devpts",
+				Source:      "devpts",
+				Options: func() []string {
+					mo := []string{"nosuid", "noexec", "newinstance", "ptmxmode=0666", "mode=0620"}
+					if !opts.Rootless {
+						mo = append(mo, "gid=5")
+					}
+					return mo
+				}(),
+			},
+			{
+				Destination: "/dev/shm",
+				Type:        "tmpfs",
+				Source:      "shm",
+				Options:     []string{"nosuid", "noexec", "nodev", "mode=1777", "size=65536k"},
+			},
+			{
+				Destination: "/dev/mqueue",
+				Type:        "mqueue",
+				Source:      "mqueue",
+				Options:     []string{"nosuid", "noexec", "nodev"},
+			},
+			{
+				Destination: "/sys",
+				Type:        "sysfs",
+				Source:      "sysfs",
+				Options:     []string{"nosuid", "noexec", "nodev", "ro"},
+			},
+			{
+				Destination: "/sys/fs/cgroup",
+				Type:        "cgroup",
+				Source:      "cgroup",
+				Options:     []string{"nosuid", "noexec", "nodev", "relatime", "ro"},
+			},
+		},
 	}
+
+	spec.Mounts = append(spec.Mounts, opts.Mounts...)
 
 	return spec, nil
 }
@@ -349,15 +453,42 @@ func normaliseCapability(c string) string {
 	return c
 }
 
-func buildNamespaces(networkMode string, rootless bool) []LinuxNamespace {
+func buildNamespaces(networkMode, netNSPath, userNSPath, mntNSPath string,
+	rootless, insideUserNS bool) []LinuxNamespace {
 	ns := []LinuxNamespace{
 		{Type: "pid"},
 		{Type: "ipc"},
 		{Type: "uts"},
-		{Type: "mount"},
 	}
-	if rootless {
-		ns = append(ns, LinuxNamespace{Type: "user"})
+	// When crun is launched inside the holder's user namespace (insideUserNS),
+	// we must NOT join the holder's mount namespace (mntNSPath) and we stay in
+	// the holder's user namespace (no new user NS entry).
+	//
+	// Correct behaviour: crun creates a brand-new child mount namespace via
+	// unshare(CLONE_NEWNS) while it is still running in the holder's user
+	// namespace.  The new mnt ns inherits ALL of the holder's mounts (including
+	// the FUSE-overlayfs rootfs) and is OWNED by the holder's user namespace,
+	// so crun (uid=0 in the holder's user ns) can set rootfs propagation on it.
+	// The holder's user NS is kept in setgroups=allow (no deny is written), so
+	// container processes can call initgroups/setgroups freely.
+	//nolint:nestif // This block is intentionally verbose for clarity in rootless mode
+	if insideUserNS {
+		// New isolated mount namespace; inherits from holder's mount namespace.
+		ns = append(ns, LinuxNamespace{Type: "mount"})
+		// No user namespace: stay in holder's user namespace.
+	} else {
+		if mntNSPath != "" {
+			ns = append(ns, LinuxNamespace{Type: "mount", Path: mntNSPath})
+		} else {
+			ns = append(ns, LinuxNamespace{Type: "mount"})
+		}
+		if rootless {
+			if userNSPath != "" {
+				ns = append(ns, LinuxNamespace{Type: "user", Path: userNSPath})
+			} else {
+				ns = append(ns, LinuxNamespace{Type: "user"})
+			}
+		}
 	}
 
 	switch networkMode {
@@ -366,17 +497,36 @@ func buildNamespaces(networkMode string, rootless bool) []LinuxNamespace {
 	case "none":
 		ns = append(ns, LinuxNamespace{Type: "network"})
 	default: // "private" or ""
-		ns = append(ns, LinuxNamespace{Type: "network"})
+		ns = append(ns, LinuxNamespace{Type: "network", Path: netNSPath})
 	}
 
 	return ns
 }
 
+//nolint:unparam // UID is currently always 0, but API allows for future non-root defaults.
 func buildUserMappings(
-	_, _ string,
-	rootless bool,
-) (uint32, []LinuxIDMapping, []LinuxIDMapping) { //nolint:unparam // currently returns 0, planned for future update
+	_ /* imgUser */, _ /* optsUser */, userNSPath string,
+	rootless, insideUserNS bool,
+) (uint32, []LinuxIDMapping, []LinuxIDMapping) {
+	log.Debug().Bool("rootless", rootless).Bool("insideUserNS", insideUserNS).
+		Str("userNSPath", userNSPath).Msg("specgen: buildUserMappings")
 	if !rootless {
+		return 0, nil, nil
+	}
+	// When crun is already running inside the holder's user namespace we do NOT
+	// create a new (nested) user namespace — no UID/GID mappings are needed.
+	// The holder's user NS has setgroups=allow (we never write deny to it), so
+	// container processes can call initgroups/setgroups freely.
+	if insideUserNS {
+		log.Debug().
+			Msg("specgen: insideUserNS=true → returning no UID/GID mappings (stays in holder user NS)")
+		return 0, nil, nil
+	}
+	// When joining an explicit pre-created user namespace there is nothing to
+	// map — the namespace already has its own mappings.
+	if userNSPath != "" {
+		log.Debug().Str("userNSPath", userNSPath).
+			Msg("specgen: joining existing userNS → returning no UID/GID mappings")
 		return 0, nil, nil
 	}
 
@@ -384,7 +534,86 @@ func buildUserMappings(
 	hostUID := uint32(os.Getuid()) //nolint:gosec // standard UID mapping for rootless
 	hostGID := uint32(os.Getgid()) //nolint:gosec // standard GID mapping for rootless
 
-	return 0,
-		[]LinuxIDMapping{{ContainerID: 0, HostID: hostUID, Size: 65536}}, //nolint:mnd // standard id mapping size
-		[]LinuxIDMapping{{ContainerID: 0, HostID: hostGID, Size: 65536}} //nolint:mnd // standard id mapping size
+	currentUser, err := userLookup()
+	if err != nil {
+		log.Debug().Err(err).Uint32("hostUID", hostUID).Uint32("hostGID", hostGID).
+			Msg("specgen: userLookup failed, falling back to single-ID mapping")
+		// Fallback to single ID mapping if user lookup fails
+		return 0,
+			[]LinuxIDMapping{{ContainerID: 0, HostID: hostUID, Size: 1}},
+			[]LinuxIDMapping{{ContainerID: 0, HostID: hostGID, Size: 1}}
+	}
+
+	uidMaps, gidMaps, err := white.BuildIDMappings(currentUser, hostUID, hostGID)
+	if err != nil {
+		log.Debug().
+			Err(err).
+			Str("user", currentUser).
+			Uint32("hostUID", hostUID).
+			Uint32("hostGID", hostGID).
+			Msg("specgen: BuildIDMappings failed, falling back to single-ID mapping")
+		// Fallback to single ID mapping if subuid/subgid not found or insufficient
+		return 0,
+			[]LinuxIDMapping{{ContainerID: 0, HostID: hostUID, Size: 1}},
+			[]LinuxIDMapping{{ContainerID: 0, HostID: hostGID, Size: 1}}
+	}
+
+	resultUID := translateMappings(uidMaps)
+	resultGID := translateMappings(gidMaps)
+	log.Debug().
+		Interface("uidMappings", resultUID).
+		Interface("gidMappings", resultGID).
+		Msg("specgen: built ID mappings from subuid/subgid")
+	return 0, resultUID, resultGID
+}
+
+func userLookup() (string, error) {
+	u, err := user.Current()
+	if err != nil {
+		return "", err
+	}
+	return u.Username, nil
+}
+
+func translateMappings(ms []white.IDMapping) []LinuxIDMapping {
+	res := make([]LinuxIDMapping, len(ms))
+	for i, m := range ms {
+		res[i] = LinuxIDMapping{
+			ContainerID: m.ContainerID,
+			HostID:      m.HostID,
+			Size:        m.Size,
+		}
+	}
+	return res
+}
+
+// buildRootfsPropagation returns the rootfs propagation setting for the spec.
+// Rootless containers cannot change the propagation of "/" to "rprivate"
+// (which is crun's default) because "/" is owned by the initial user namespace.
+// Using "slave" is permitted and prevents mount leaks back to the host.
+func buildRootfsPropagation(rootless bool) string {
+	if rootless {
+		return "slave"
+	}
+	return ""
+}
+
+func buildSeccomp(s *white.Seccomp) *LinuxSeccomp {
+	if s == nil {
+		return nil
+	}
+
+	syscalls := make([]SeccompSyscall, len(s.Syscalls))
+	for i, sys := range s.Syscalls {
+		syscalls[i] = SeccompSyscall{
+			Names:  sys.Names,
+			Action: sys.Action,
+		}
+	}
+
+	return &LinuxSeccomp{
+		DefaultAction: s.DefaultAction,
+		Architectures: s.Architectures,
+		Syscalls:      syscalls,
+	}
 }

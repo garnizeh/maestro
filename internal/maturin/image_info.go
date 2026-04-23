@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/opencontainers/go-digest"
+	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // shortIDLen is the number of hex characters used for a short image ID.
@@ -65,10 +66,11 @@ type ociManifest struct {
 }
 
 type ociConfig struct {
-	Created      time.Time    `json:"created"`
-	Architecture string       `json:"architecture"`
-	Os           string       `json:"os"`
-	History      []ociHistory `json:"history"`
+	Created      time.Time             `json:"created"`
+	Architecture string                `json:"architecture"`
+	Os           string                `json:"os"`
+	Config       imagespec.ImageConfig `json:"config"`
+	History      []ociHistory          `json:"history"`
 }
 
 type ociHistory struct {
@@ -102,7 +104,9 @@ func (s *Store) resolveRef(ref name.Reference) (digest.Digest, error) {
 
 // parseManifestAndConfig parses the manifest blob at dgst and returns the
 // parsed manifest, raw manifest bytes, parsed config, and raw config bytes.
-func (s *Store) parseManifestAndConfig(dgst digest.Digest) (ociManifest, []byte, ociConfig, []byte, error) {
+func (s *Store) parseManifestAndConfig(
+	dgst digest.Digest,
+) (ociManifest, []byte, ociConfig, []byte, error) {
 	rawMan, err := s.readBlob(dgst)
 	if err != nil {
 		return ociManifest{}, nil, ociConfig{}, nil, fmt.Errorf("read manifest: %w", err)
@@ -144,7 +148,7 @@ func (s *Store) ListImages(_ context.Context) ([]ImageSummary, error) {
 
 	var summaries []ImageSummary
 
-	err := filepath.WalkDir(manifestsRoot, func(path string, d fs.DirEntry, walkErr error) error {
+	err := s.fs.WalkDir(manifestsRoot, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			if os.IsNotExist(walkErr) {
 				return fs.SkipAll
@@ -157,7 +161,8 @@ func (s *Store) ListImages(_ context.Context) ([]ImageSummary, error) {
 
 		rel, relErr := filepath.Rel(manifestsRoot, path)
 		if relErr != nil {
-			return relErr //coverage:ignore filepath.Rel only errors when paths have different roots
+			// coverage:ignore filepath.Rel only errors when paths have different roots
+			return relErr
 		}
 
 		parts := strings.Split(rel, string(filepath.Separator))
@@ -322,7 +327,7 @@ func (s *Store) RemoveImage(ctx context.Context, refStr string) error {
 	}
 
 	linkPath := s.tagLinkPath(registry, repo, tagStr)
-	if removeErr := os.Remove(linkPath); removeErr != nil && !os.IsNotExist(removeErr) {
+	if removeErr := s.fs.Remove(linkPath); removeErr != nil && !os.IsNotExist(removeErr) {
 		return fmt.Errorf("remove tag symlink: %w", removeErr)
 	}
 
@@ -331,4 +336,32 @@ func (s *Store) RemoveImage(ctx context.Context, refStr string) error {
 	}
 
 	return nil
+}
+
+// GetConfig returns the OCI image configuration and manifest digest for the
+// given image reference.
+func (s *Store) GetConfig(_ context.Context, refStr string) (imagespec.ImageConfig, string, error) {
+	ref, err := name.ParseReference(refStr)
+	if err != nil {
+		return imagespec.ImageConfig{}, "", fmt.Errorf(
+			"maturin: get config: parse reference %q: %w",
+			refStr,
+			err,
+		)
+	}
+
+	dgst, err := s.resolveRef(ref)
+	if err != nil {
+		return imagespec.ImageConfig{}, "", fmt.Errorf("maturin: get config: resolve tag: %w", err)
+	}
+
+	_, _, cfg, _, err := s.parseManifestAndConfig(dgst)
+	if err != nil {
+		return imagespec.ImageConfig{}, "", fmt.Errorf(
+			"maturin: get config: parse manifest: %w",
+			err,
+		)
+	}
+
+	return cfg.Config, dgst.String(), nil
 }

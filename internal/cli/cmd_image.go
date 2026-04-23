@@ -4,14 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"text/tabwriter"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
-	"github.com/rodrigo-baliza/maestro/internal/maturin"
+	"github.com/garnizeh/maestro/internal/maturin"
 )
 
 const (
@@ -21,23 +20,24 @@ const (
 	hoursPerDay      = 24
 )
 
-// ── dependency injection points ───────────────────────────────────────────────
-
-//nolint:gochecknoglobals // dependency injection point: overridden in tests
-var imageLsFn = defaultImageLs
-
-//nolint:gochecknoglobals // dependency injection point: overridden in tests
-var imageInspectFn = defaultImageInspect
-
-//nolint:gochecknoglobals // dependency injection point: overridden in tests
-var imageHistoryFn = defaultImageHistory
-
-//nolint:gochecknoglobals // dependency injection point: overridden in tests
-var imageRmFn = defaultImageRm
-
 // ── subcommand constructors ───────────────────────────────────────────────────
 
-func newImageLsCmd() *cobra.Command {
+func newImageCmd(h *Handler) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "image",
+		Short: "Manage images",
+	}
+	cmd.AddCommand(
+		newImageLsCmd(h),
+		newImageInspectCmd(h),
+		newImageHistoryCmd(h),
+		newImageRmCmd(h),
+		newPullCmd(h), // image pull is also under image
+	)
+	return cmd
+}
+
+func newImageLsCmd(h *Handler) *cobra.Command {
 	var format string
 	cmd := &cobra.Command{
 		Use:     "ls",
@@ -45,39 +45,39 @@ func newImageLsCmd() *cobra.Command {
 		Short:   "List locally stored images",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runImageLs(cmd, format)
+			return runImageLs(h, cmd, format)
 		},
 	}
 	cmd.Flags().StringVar(&format, "format", "", "Output format: table (default), json")
 	return cmd
 }
 
-func newImageInspectCmd() *cobra.Command {
+func newImageInspectCmd(h *Handler) *cobra.Command {
 	return &cobra.Command{
 		Use:   "inspect IMAGE",
 		Short: "Display detailed image information",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runImageInspect(cmd, args[0])
+			return runImageInspect(h, cmd, args[0])
 		},
 	}
 }
 
-func newImageHistoryCmd() *cobra.Command {
+func newImageHistoryCmd(h *Handler) *cobra.Command {
 	var format string
 	cmd := &cobra.Command{
 		Use:   "history IMAGE",
 		Short: "Show image layer history",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runImageHistory(cmd, args[0], format)
+			return runImageHistory(h, cmd, args[0], format)
 		},
 	}
 	cmd.Flags().StringVar(&format, "format", "", "Output format: table (default), json")
 	return cmd
 }
 
-func newImageRmCmd() *cobra.Command {
+func newImageRmCmd(h *Handler) *cobra.Command {
 	var force bool
 	cmd := &cobra.Command{
 		Use:     "rm IMAGE [IMAGE...]",
@@ -85,25 +85,29 @@ func newImageRmCmd() *cobra.Command {
 		Short:   "Remove one or more locally stored images",
 		Args:    cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runImageRm(cmd, args, force)
+			return runImageRm(h, cmd, args, force)
 		},
 	}
-	cmd.Flags().BoolVarP(&force, "force", "f", false, "Force removal (ignore active container check)")
+	cmd.Flags().
+		BoolVarP(&force, "force", "f", false, "Force removal (ignore active container check)")
 	return cmd
 }
 
 // ── runners ───────────────────────────────────────────────────────────────────
 
-func runImageLs(cmd *cobra.Command, format string) error {
-	root := storeRoot()
-	summaries, err := imageLsFn(cmd.Context(), root)
+func runImageLs(h *Handler, cmd *cobra.Command, format string) error {
+	root := h.StoreRoot()
+	log.Debug().Str("root", root).Msg("cli: image ls")
+	summaries, err := h.ImageLsFn(cmd.Context(), root)
 	if err != nil {
 		return fmt.Errorf("image ls: %w", err)
 	}
 
-	if globalFlags.Quiet {
+	if h.Quiet {
 		for _, s := range summaries {
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), s.ShortID)
+			if _, writeErr := fmt.Fprintln(cmd.OutOrStdout(), s.ShortID); writeErr != nil {
+				return fmt.Errorf("failed to write image ID: %w", writeErr)
+			}
 		}
 		return nil
 	}
@@ -112,43 +116,59 @@ func runImageLs(cmd *cobra.Command, format string) error {
 	case string(FormatJSON):
 		b, jsonErr := json.MarshalIndent(summaries, "", "  ")
 		if jsonErr != nil {
-			return fmt.Errorf("json: %w", jsonErr) //coverage:ignore json.Marshal on a []ImageSummary never errors
+			return fmt.Errorf(
+				"json: %w",
+				jsonErr,
+			) //coverage:ignore json.Marshal on a []ImageSummary never errors
 		}
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(b))
+		if _, printErr := fmt.Fprintln(cmd.OutOrStdout(), string(b)); printErr != nil {
+			return fmt.Errorf("failed to write JSON: %w", printErr)
+		}
 
 	default:
 		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, imageTWPad, ' ', 0)
-		_, _ = fmt.Fprintln(w, "REPOSITORY\tTAG\tIMAGE ID\tCREATED\tSIZE")
+		if _, writeErr := fmt.Fprintln(w, "REPOSITORY\tTAG\tIMAGE ID\tCREATED\tSIZE"); writeErr != nil {
+			return fmt.Errorf("failed to write table header: %w", writeErr)
+		}
 		for _, s := range summaries {
-			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+			printFf(w, "%s\t%s\t%s\t%s\t%s\n",
 				s.Repository, s.Tag, s.ShortID,
 				formatAge(s.Created), formatBytes(s.Size),
 			)
 		}
-		_ = w.Flush()
+		if flushErr := w.Flush(); flushErr != nil {
+			return fmt.Errorf("failed to flush table writer: %w", flushErr)
+		}
 	}
 
 	return nil
 }
 
-func runImageInspect(cmd *cobra.Command, refStr string) error {
-	root := storeRoot()
-	result, err := imageInspectFn(root, refStr)
+func runImageInspect(h *Handler, cmd *cobra.Command, refStr string) error {
+	root := h.StoreRoot()
+	log.Debug().Str("ref", refStr).Str("root", root).Msg("cli: image inspect")
+	result, err := h.ImageInspectFn(root, refStr)
 	if err != nil {
 		return fmt.Errorf("image inspect: %w", err)
 	}
 
 	b, jsonErr := json.MarshalIndent(result, "", "  ")
 	if jsonErr != nil {
-		return fmt.Errorf("json: %w", jsonErr) //coverage:ignore json.Marshal on *InspectResult never errors
+		return fmt.Errorf(
+			"json: %w",
+			jsonErr,
+		) //coverage:ignore json.Marshal on *InspectResult never errors
 	}
-	_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(b))
+	if _, writeErr := fmt.Fprintln(cmd.OutOrStdout(), string(b)); writeErr != nil {
+		return fmt.Errorf("failed to write JSON: %w", writeErr)
+	}
 	return nil
 }
 
-func runImageHistory(cmd *cobra.Command, refStr, format string) error {
-	root := storeRoot()
-	entries, err := imageHistoryFn(root, refStr)
+func runImageHistory(h *Handler, cmd *cobra.Command, refStr, format string) error {
+	root := h.StoreRoot()
+	log.Debug().Str("ref", refStr).Str("root", root).Msg("cli: image history")
+	entries, err := h.ImageHistoryFn(root, refStr)
 	if err != nil {
 		return fmt.Errorf("image history: %w", err)
 	}
@@ -157,40 +177,50 @@ func runImageHistory(cmd *cobra.Command, refStr, format string) error {
 	case string(FormatJSON):
 		b, jsonErr := json.MarshalIndent(entries, "", "  ")
 		if jsonErr != nil {
-			return fmt.Errorf("json: %w", jsonErr) //coverage:ignore json.Marshal on []HistoryEntry never errors
+			return fmt.Errorf(
+				"json: %w",
+				jsonErr,
+			) //coverage:ignore json.Marshal on []HistoryEntry never errors
 		}
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(b))
+		if _, printErr := fmt.Fprintln(cmd.OutOrStdout(), string(b)); printErr != nil {
+			return fmt.Errorf("failed to write JSON: %w", printErr)
+		}
 
 	default:
 		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, imageTWPad, ' ', 0)
-		_, _ = fmt.Fprintln(w, "CREATED\tCREATED BY\tSIZE\tCOMMENT")
+		if _, writeErr := fmt.Fprintln(w, "CREATED\tCREATED BY\tSIZE\tCOMMENT"); writeErr != nil {
+			return fmt.Errorf("failed to write table header: %w", writeErr)
+		}
 		for _, e := range entries {
 			createdBy := e.CreatedBy
 			if len(createdBy) > createdByMaxLen {
 				createdBy = createdBy[:createdByTrimLen] + "..."
 			}
-			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
+			printFf(w, "%s\t%s\t%s\t%s\n",
 				formatAge(e.Created), createdBy,
 				formatBytes(e.Size), e.Comment,
 			)
 		}
-		_ = w.Flush()
+		if flushErr := w.Flush(); flushErr != nil {
+			return fmt.Errorf("failed to flush table writer: %w", flushErr)
+		}
 	}
 
 	return nil
 }
 
-func runImageRm(cmd *cobra.Command, refs []string, _ bool) error {
-	root := storeRoot()
+func runImageRm(h *Handler, cmd *cobra.Command, refs []string, force bool) error {
+	root := h.StoreRoot()
 	var lastErr error
+	log.Debug().Interface("refs", refs).Bool("force", force).Msg("cli: image rm")
 	for _, ref := range refs {
-		if err := imageRmFn(cmd.Context(), root, ref); err != nil {
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Error: %v\n", err)
+		if err := h.ImageRmFn(cmd.Context(), root, ref); err != nil {
+			printFf(cmd.ErrOrStderr(), "Error: %v\n", err)
 			lastErr = err
 			continue
 		}
-		if !globalFlags.Quiet {
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Deleted: %s\n", ref)
+		if !h.Quiet {
+			printFf(cmd.OutOrStdout(), "Deleted: %s\n", ref)
 		}
 	}
 	return lastErr
@@ -199,34 +229,30 @@ func runImageRm(cmd *cobra.Command, refs []string, _ bool) error {
 // ── default implementations (DI targets) ─────────────────────────────────────
 
 func defaultImageLs(ctx context.Context, root string) ([]maturin.ImageSummary, error) {
-	return maturin.New(root).ListImages(ctx) //coverage:ignore wiring-only; exercised in integration tests
+	return maturin.New(root).
+		ListImages(ctx)
+	//coverage:ignore wiring-only; exercised in integration tests
 }
 
 func defaultImageInspect(root, refStr string) (*maturin.InspectResult, error) {
-	return maturin.New(root).InspectImage(refStr) //coverage:ignore wiring-only; exercised in integration tests
+	return maturin.New(root).
+		InspectImage(refStr)
+	//coverage:ignore wiring-only; exercised in integration tests
 }
 
 func defaultImageHistory(root, refStr string) ([]maturin.HistoryEntry, error) {
-	return maturin.New(root).ImageHistory(refStr) //coverage:ignore wiring-only; exercised in integration tests
+	return maturin.New(root).
+		ImageHistory(refStr)
+	//coverage:ignore wiring-only; exercised in integration tests
 }
 
 func defaultImageRm(ctx context.Context, root, refStr string) error {
-	return maturin.New(root).RemoveImage(ctx, refStr) //coverage:ignore wiring-only; exercised in integration tests
+	return maturin.New(root).
+		RemoveImage(ctx, refStr)
+	//coverage:ignore wiring-only; exercised in integration tests
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-
-// storeRoot returns the Maturin store root, falling back to the default path.
-func storeRoot() string {
-	if globalFlags.Root != "" {
-		return globalFlags.Root
-	}
-	home, homeErr := os.UserHomeDir()
-	if homeErr != nil {
-		return "" //coverage:ignore requires system without $HOME
-	}
-	return filepath.Join(home, ".local", "share", "maestro")
-}
 
 // formatAge returns a human-readable age string for the given time.
 func formatAge(t time.Time) string {
@@ -246,15 +272,17 @@ func formatAge(t time.Time) string {
 	}
 }
 
-// newImagesShortcut returns the `images` top-level shortcut that delegates to
-// `image ls`. Used by [NewRootCommand] to wire the convenience alias.
-func newImagesShortcut() *cobra.Command {
+// newImagesCmd (shortcut) is already covered by newImagesShortcut in shortcuts.go?
+// No, it was in cmd_image.go. I'll move it to newImagesShortcut to match root.go's expectation.
+// Wait, root.go called newImagesCmd but I named it newImagesShortcut. I'll align them.
+
+func newImagesCmd(h *Handler) *cobra.Command {
 	return &cobra.Command{
 		Use:   "images",
 		Short: "List images (shortcut for 'image ls')",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runImageLs(cmd, "")
+			return runImageLs(h, cmd, "")
 		},
 	}
 }

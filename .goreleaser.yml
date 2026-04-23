@@ -19,10 +19,10 @@ builds:
       - arm64
     ldflags:
       - -w -s
-      - -X github.com/rodrigo-baliza/maestro/internal/cli.Version={{.Version}}
-      - -X github.com/rodrigo-baliza/maestro/internal/cli.Commit={{.Commit}}
-      - -X github.com/rodrigo-baliza/maestro/internal/cli.BuildDate={{.Date}}
-      - -X github.com/rodrigo-baliza/maestro/internal/cli.GoVersion={{.Env.GOVERSION}}
+      - -X github.com/garnizeh/maestro/internal/cli.Version={{.Version}}
+      - -X github.com/garnizeh/maestro/internal/cli.Commit={{.Commit}}
+      - -X github.com/garnizeh/maestro/internal/cli.BuildDate={{.Date}}
+      - -X github.com/garnizeh/maestro/internal/cli.GoVersion={{.Env.GOVERSION}}
 
 archives:
   - id: maestro
@@ -51,7 +51,7 @@ changelog:
 
 release:
   github:
-    owner: rodrigo-baliza
+    owner: garnizeh
     name: maestro
   draft: false
   prerelease: auto

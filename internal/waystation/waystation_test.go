@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/internal/waystation"
+	"github.com/garnizeh/maestro/internal/waystation"
 )
 
 type testRecord struct {
@@ -93,7 +93,9 @@ func TestGet_NotFound(t *testing.T) {
 func TestDelete(t *testing.T) {
 	s := newStore(t)
 	rec := testRecord{ID: "c1"}
-	_ = s.Put("containers", "c1", rec)
+	if err := s.Put("containers", "c1", rec); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
 
 	if err := s.Delete("containers", "c1"); err != nil {
 		t.Fatalf("Delete: %v", err)
@@ -115,7 +117,9 @@ func TestDelete_NotFound(t *testing.T) {
 func TestList(t *testing.T) {
 	s := newStore(t)
 	for _, id := range []string{"a", "b", "c"} {
-		_ = s.Put("containers", id, testRecord{ID: id})
+		if err := s.Put("containers", id, testRecord{ID: id}); err != nil {
+			t.Fatalf("Put: %v", err)
+		}
 	}
 
 	keys, err := s.List("containers")
@@ -132,7 +136,9 @@ func TestExists(t *testing.T) {
 	if s.Exists("containers", "missing") {
 		t.Error("Exists returned true for missing key")
 	}
-	_ = s.Put("containers", "present", testRecord{})
+	if err := s.Put("containers", "present", testRecord{}); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
 	if !s.Exists("containers", "present") {
 		t.Error("Exists returned false for present key")
 	}
@@ -149,7 +155,9 @@ func TestPut_Atomic(t *testing.T) {
 		go func(n int) {
 			defer wg.Done()
 			rec := testRecord{ID: "shared", Value: string(rune('A' + n%26))}
-			_ = s.Put("containers", "shared", rec)
+			if err := s.Put("containers", "shared", rec); err != nil {
+				t.Errorf("Put: %v", err)
+			}
 		}(i)
 	}
 	wg.Wait()
@@ -160,7 +168,10 @@ func TestPut_Atomic(t *testing.T) {
 		t.Fatalf("Get after concurrent writes: %v", err)
 	}
 	// Re-verify the raw file is valid JSON.
-	data, _ := os.ReadFile(s.Root() + "/containers/shared.json")
+	data, err := os.ReadFile(s.Root() + "/containers/shared.json")
+	if err != nil {
+		t.Fatalf("failed to read shared.json: %v", err)
+	}
 	if !json.Valid(data) {
 		t.Error("file contains invalid JSON after concurrent writes")
 	}

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rodrigo-baliza/maestro/internal/shardik"
-	"github.com/rodrigo-baliza/maestro/test/testutil"
+	"github.com/garnizeh/maestro/internal/shardik"
+	"github.com/garnizeh/maestro/test/testutil"
 )
 
 // ── Task #23 — registry client ────────────────────────────────────────────────
@@ -90,7 +90,9 @@ func TestClient_BlobExists_True(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetBlob (existence check): %v", err)
 	}
-	_ = rc.Close()
+	if closeErr := rc.Close(); closeErr != nil {
+		t.Fatalf("rc.Close: %v", closeErr)
+	}
 }
 
 func TestClient_ListTags(t *testing.T) {
@@ -166,7 +168,11 @@ func TestClient_GetBlob(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetBlob: %v", err)
 	}
-	defer func() { _ = rc.Close() }()
+	defer func() {
+		if closeErr := rc.Close(); closeErr != nil {
+			t.Fatalf("rc.Close: %v", closeErr)
+		}
+	}()
 }
 
 // mockOCIServer creates a minimal OCI registry stub for error-path testing.
@@ -247,7 +253,7 @@ func TestClient_GetIndex_ServerError(t *testing.T) {
 
 func TestClient_GetBlob_InvalidRepo(t *testing.T) {
 	c := shardik.New(shardik.WithInsecure())
-	_, err := c.GetBlob(context.Background(), ":::invalid:::", testutil.FakeDigest())
+	_, err := c.GetBlob(context.Background(), ":::invalid:::", testutil.FakeDigest(t))
 	if err == nil {
 		t.Fatal("expected error for invalid repository")
 	}
@@ -257,11 +263,14 @@ func TestClient_GetBlob_NotFound(t *testing.T) {
 	host := mockOCIServer(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"errors":[{"code":"BLOB_UNKNOWN","message":"blob unknown"}]}`))
+		_, err := w.Write([]byte(`{"errors":[{"code":"BLOB_UNKNOWN","message":"blob unknown"}]}`))
+		if err != nil {
+			t.Fatalf("w.Write: %v", err)
+		}
 	})
 
 	c := shardik.New(shardik.WithInsecure())
-	_, err := c.GetBlob(context.Background(), host+"/repo", testutil.FakeDigest())
+	_, err := c.GetBlob(context.Background(), host+"/repo", testutil.FakeDigest(t))
 	if err == nil {
 		t.Fatal("expected error for missing blob")
 	}
@@ -276,7 +285,7 @@ func TestClient_GetBlob_ServerError(t *testing.T) {
 	})
 
 	c := shardik.New(shardik.WithInsecure())
-	_, err := c.GetBlob(context.Background(), host+"/repo", testutil.FakeDigest())
+	_, err := c.GetBlob(context.Background(), host+"/repo", testutil.FakeDigest(t))
 	if err == nil {
 		t.Fatal("expected error for 500 response")
 	}
@@ -287,7 +296,7 @@ func TestClient_GetBlob_ServerError(t *testing.T) {
 
 func TestClient_BlobExists_InvalidRepo(t *testing.T) {
 	c := shardik.New(shardik.WithInsecure())
-	_, err := c.BlobExists(context.Background(), ":::invalid:::", testutil.FakeDigest())
+	_, err := c.BlobExists(context.Background(), ":::invalid:::", testutil.FakeDigest(t))
 	if err == nil {
 		t.Fatal("expected error for invalid repository")
 	}
@@ -297,11 +306,14 @@ func TestClient_BlobExists_False(t *testing.T) {
 	host := mockOCIServer(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"errors":[{"code":"BLOB_UNKNOWN","message":"blob unknown"}]}`))
+		_, err := w.Write([]byte(`{"errors":[{"code":"BLOB_UNKNOWN","message":"blob unknown"}]}`))
+		if err != nil {
+			t.Fatalf("w.Write: %v", err)
+		}
 	})
 
 	c := shardik.New(shardik.WithInsecure())
-	exists, err := c.BlobExists(context.Background(), host+"/repo", testutil.FakeDigest())
+	exists, err := c.BlobExists(context.Background(), host+"/repo", testutil.FakeDigest(t))
 	if err != nil {
 		t.Fatalf("BlobExists: %v", err)
 	}
@@ -315,7 +327,7 @@ func TestClient_BlobExists_True_MockServer(t *testing.T) {
 	// The response must include Content-Type or ggcr rejects it.
 	host := mockOCIServer(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodHead && strings.Contains(r.URL.Path, "/manifests/") {
-			d := testutil.FakeDigest()
+			d := testutil.FakeDigest(t)
 			w.Header().Set("Content-Type", "application/vnd.docker.distribution.manifest.v2+json")
 			w.Header().Set("Content-Length", "2")
 			w.Header().Set("Docker-Content-Digest", d.String())
@@ -326,7 +338,7 @@ func TestClient_BlobExists_True_MockServer(t *testing.T) {
 	})
 
 	c := shardik.New(shardik.WithInsecure())
-	exists, err := c.BlobExists(context.Background(), host+"/repo", testutil.FakeDigest())
+	exists, err := c.BlobExists(context.Background(), host+"/repo", testutil.FakeDigest(t))
 	if err != nil {
 		t.Fatalf("BlobExists: %v", err)
 	}
@@ -341,7 +353,7 @@ func TestClient_BlobExists_ServerError(t *testing.T) {
 	})
 
 	c := shardik.New(shardik.WithInsecure())
-	_, err := c.BlobExists(context.Background(), host+"/repo", testutil.FakeDigest())
+	_, err := c.BlobExists(context.Background(), host+"/repo", testutil.FakeDigest(t))
 	if err == nil {
 		t.Fatal("expected error for 500 response")
 	}
@@ -373,7 +385,10 @@ func TestClient_GetManifest_Unauthorized(t *testing.T) {
 	host := mockOCIServer(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		_, _ = w.Write([]byte(`{"errors":[{"code":"UNAUTHORIZED","message":"access denied"}]}`))
+		_, err := w.Write([]byte(`{"errors":[{"code":"UNAUTHORIZED","message":"access denied"}]}`))
+		if err != nil {
+			t.Fatalf("w.Write: %v", err)
+		}
 	})
 
 	c := shardik.New(shardik.WithInsecure())

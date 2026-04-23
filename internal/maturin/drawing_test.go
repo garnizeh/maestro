@@ -17,7 +17,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	"github.com/opencontainers/go-digest"
 
-	"github.com/rodrigo-baliza/maestro/internal/maturin"
+	"github.com/garnizeh/maestro/internal/maturin"
 )
 
 // ── test constants ────────────────────────────────────────────────────────────
@@ -222,16 +222,25 @@ func TestDraw_SinglePlatformImage_Success(t *testing.T) {
 	}
 
 	// Verify all layers are in the CAS.
-	layers, _ := img.Layers()
+	layers, err := img.Layers()
+	if err != nil {
+		t.Fatalf("img.Layers: %v", err)
+	}
 	for _, layer := range layers {
-		h, _ := layer.Digest()
+		h, hErr := layer.Digest()
+		if hErr != nil {
+			t.Fatalf("layer.Digest: %v", hErr)
+		}
 		if !s.Exists(digest.Digest(h.String())) {
 			t.Errorf("layer %s not in CAS", h)
 		}
 	}
 
 	// Verify index updated.
-	descs, _ := s.ListIndex(context.Background())
+	descs, err := s.ListIndex(context.Background())
+	if err != nil {
+		t.Fatalf("s.ListIndex: %v", err)
+	}
 	if len(descs) != 1 {
 		t.Errorf("expected 1 index entry, got %d", len(descs))
 	}
@@ -308,11 +317,14 @@ func TestDraw_DigestReference_NoTagSymlink(t *testing.T) {
 	s := newTestStore(t)
 	img := randomImage(t, 1)
 
-	imgDigest, _ := img.Digest()
+	imgDigest, err := img.Digest()
+	if err != nil {
+		t.Fatalf("img.Digest: %v", err)
+	}
 	refStr := "nginx@" + imgDigest.String()
 
-	if err := s.Draw(context.Background(), imageClient(img), refStr, maturin.DrawOptions{}); err != nil {
-		t.Fatalf("Draw: %v", err)
+	if drawErr := s.Draw(context.Background(), imageClient(img), refStr, maturin.DrawOptions{}); drawErr != nil {
+		t.Fatalf("Draw: %v", drawErr)
 	}
 
 	// Manifest blob should be in the CAS.
@@ -321,7 +333,10 @@ func TestDraw_DigestReference_NoTagSymlink(t *testing.T) {
 	}
 
 	// Verify index updated.
-	descs, _ := s.ListIndex(context.Background())
+	descs, err := s.ListIndex(context.Background())
+	if err != nil {
+		t.Fatalf("s.ListIndex: %v", err)
+	}
 	if len(descs) != 1 {
 		t.Errorf("expected 1 index entry, got %d", len(descs))
 	}
@@ -332,16 +347,19 @@ func TestDraw_DigestReference_AlreadyStoredManifest(t *testing.T) {
 	s := newTestStore(t)
 	img := randomImage(t, 1)
 
-	imgDigest, _ := img.Digest()
+	imgDigest, err := img.Digest()
+	if err != nil {
+		t.Fatalf("img.Digest: %v", err)
+	}
 	refStr := "nginx@" + imgDigest.String()
 
 	// First pull stores the manifest.
-	if err := s.Draw(context.Background(), imageClient(img), refStr, maturin.DrawOptions{}); err != nil {
-		t.Fatalf("first Draw: %v", err)
+	if drawErr := s.Draw(context.Background(), imageClient(img), refStr, maturin.DrawOptions{}); drawErr != nil {
+		t.Fatalf("first Draw: %v", drawErr)
 	}
 	// Second pull finds manifest already stored — should succeed without error.
-	if err := s.Draw(context.Background(), imageClient(img), refStr, maturin.DrawOptions{}); err != nil {
-		t.Fatalf("second Draw: %v", err)
+	if drawErr := s.Draw(context.Background(), imageClient(img), refStr, maturin.DrawOptions{}); drawErr != nil {
+		t.Fatalf("second Draw: %v", drawErr)
 	}
 }
 
@@ -349,7 +367,10 @@ func TestDraw_IndexDispatch_OCIImageIndex(t *testing.T) {
 	t.Parallel()
 	s := newTestStore(t)
 	img := randomImage(t, 1)
-	imgDigest, _ := img.Digest()
+	imgDigest, err := img.Digest()
+	if err != nil {
+		t.Fatalf("img.Digest: %v", err)
+	}
 
 	idx := &fakeDrawIndex{
 		manifest: &ggcr.IndexManifest{
@@ -368,13 +389,16 @@ func TestDraw_IndexDispatch_OCIImageIndex(t *testing.T) {
 		image:        img,
 	}
 
-	if err := s.Draw(
+	if drawErr := s.Draw(
 		context.Background(), client, "nginx:latest", maturin.DrawOptions{Platform: "linux/amd64"},
-	); err != nil {
-		t.Fatalf("Draw with OCIImageIndex: %v", err)
+	); drawErr != nil {
+		t.Fatalf("Draw with OCIImageIndex: %v", drawErr)
 	}
 
-	descs, _ := s.ListIndex(context.Background())
+	descs, err := s.ListIndex(context.Background())
+	if err != nil {
+		t.Fatalf("s.ListIndex: %v", err)
+	}
 	if len(descs) != 1 {
 		t.Errorf("expected 1 index entry, got %d", len(descs))
 	}
@@ -384,7 +408,10 @@ func TestDraw_IndexDispatch_DockerManifestList(t *testing.T) {
 	t.Parallel()
 	s := newTestStore(t)
 	img := randomImage(t, 1)
-	imgDigest, _ := img.Digest()
+	imgDigest, err := img.Digest()
+	if err != nil {
+		t.Fatalf("img.Digest: %v", err)
+	}
 
 	idx := &fakeDrawIndex{
 		manifest: &ggcr.IndexManifest{
@@ -403,10 +430,10 @@ func TestDraw_IndexDispatch_DockerManifestList(t *testing.T) {
 		image:        img,
 	}
 
-	if err := s.Draw(
+	if drawErr := s.Draw(
 		context.Background(), client, "nginx:latest", maturin.DrawOptions{Platform: "linux/amd64"},
-	); err != nil {
-		t.Fatalf("Draw with DockerManifestList: %v", err)
+	); drawErr != nil {
+		t.Fatalf("Draw with DockerManifestList: %v", drawErr)
 	}
 }
 
@@ -478,7 +505,12 @@ func TestDraw_KeystoneNoMatch(t *testing.T) {
 		index:        idx,
 	}
 
-	err := s.Draw(context.Background(), client, "nginx:latest", maturin.DrawOptions{Platform: "linux/amd64"})
+	err := s.Draw(
+		context.Background(),
+		client,
+		"nginx:latest",
+		maturin.DrawOptions{Platform: "linux/amd64"},
+	)
 	if !errors.Is(err, maturin.ErrNoPlatformMatch) {
 		t.Fatalf("expected ErrNoPlatformMatch, got %v", err)
 	}
